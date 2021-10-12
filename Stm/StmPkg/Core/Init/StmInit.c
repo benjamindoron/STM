@@ -1227,7 +1227,8 @@ LaunchBack (
   }
   
   if(!IsResourceListValid ((STM_RSC *)(UINTN)mHostContextCommon.HostContextPerCpu[Index].TxtProcessorSmmDescriptor->BiosHwResourceRequirementsPtr, FALSE)) {
-    DEBUG ((EFI_D_INFO, "%ld LaunchBack - ValidateBiosResourceList fail!\n", Index));
+    DEBUG ((EFI_D_INFO, "%ld LaunchBack - ValidateBiosResourceList fail! Pointer: 0x%x\n", Index,
+					(UINTN)mHostContextCommon.HostContextPerCpu[Index].TxtProcessorSmmDescriptor->BiosHwResourceRequirementsPtr));
     WriteUnaligned32 ((UINT32 *)&Reg->Rax, ERROR_STM_MALFORMED_RESOURCE_LIST);
     VmWriteN (VMCS_N_GUEST_RFLAGS_INDEX, VmReadN(VMCS_N_GUEST_RFLAGS_INDEX) | RFLAGS_CF);
   } else {
