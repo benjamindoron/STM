@@ -21,6 +21,8 @@ WITHOUT WARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.
 extern UINT64 EndTimeStamp;
 extern UINT32 PostPeVmProc(UINT32 rc, UINT32 CpuIndex, UINT32 mode);
 
+VOID DumpMemory(IN UINT32 Index, UINT64 Address, UINT32 Length);
+
 VOID
 	PeRsmHandler (
 	IN UINT32  CpuIndex
@@ -46,7 +48,9 @@ VOID
 			(UINTN)CpuIndex,
 			mGuestContextCommonSmi.GuestContextPerCpu[CpuIndex].Vmcs,
 			Rflags));
-		DEBUG((EFI_D_ERROR, "%ld PeRsmHandler - CpuDeadLoop\n"));
+		DumpMemory(CpuIndex,  mGuestContextCommonSmi.GuestContextPerCpu[CpuIndex].Vmcs, 64);
+		DumpVmcsAllField (CpuIndex);
+		DEBUG((EFI_D_ERROR, "%ld PeRsmHandler - CpuDeadLoop\n", CpuIndex));
 		CpuDeadLoop ();
 	}
 
@@ -70,6 +74,8 @@ VOID
 	{
 		PostPeVmProc(PE_SUCCESS, CpuIndex, RELEASE_VM);
 	}
+        DumpVmcsAllField (CpuIndex);
+
 	DEBUG((EFI_D_ERROR, "%ld PeRsmHandler CpuDeadLoop\n", CpuIndex));
 	CpuDeadLoop ();
 
