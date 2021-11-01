@@ -28,7 +28,7 @@ extern void coreboot_debug_putc(char c);
 //
 // Define the maximum debug and assert message length that this library supports 
 //
-#define MAX_DEBUG_MESSAGE_LENGTH  0x100
+#define MAX_DEBUG_MESSAGE_LENGTH  0x256
 
 //
 // Internal spin lock for debug
