@@ -12,6 +12,8 @@ WITHOUT WARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.
 
 **/
 
+//#define VMCSDEBUGPRINT 1
+
 #include "StmRuntime.h"
 #include "PeStm.h"
 
@@ -51,6 +53,12 @@ static UINT64 VMCS_N_GUEST_RSP_OFFSET = 0;
 static UINT64 VMCS_64_CONTROL_EXECUTIVE_VMCS_PTR_OFFSET = 0;
 static UINT64 VMCS_64_GUEST_VMCS_LINK_PTR_OFFSET = 0;
 static UINT64 VMCS_OFFSET_READY = 0;
+
+#ifdef VMCSDEBUGPRINT
+static UINT64 VMCS_32_CONTROL_PIN_BASED_VM_EXECUTION_OFFSET;
+static UINT64 VMCS_32_CONTROL_PROCESSOR_BASED_VM_EXECUTION_OFFSET;
+static UINT64 VMCS_32_CONTROL_2ND_PROCESSOR_BASED_VM_EXECUTION_OFFSET;
+#endif
 
 int GetMultiProcessorState(UINT32 CpuIndex)
 {
@@ -131,6 +139,7 @@ void GetRootVmxState(UINT32 CpuIndex, ROOT_VMX_STATE * RootState)
 	//UINT64 ExecutiveVMCS;
 	UINT64 HostRootVMCS;
 	UINT64 CurrentVMCSSave;
+#ifdef VMCSDEBUGPRINT
 	UINT64 RootGuestCR0_M;
 	UINT64 RootGuestCR3_M;
 	UINT64 RootGuestCR4_M;
@@ -139,9 +148,10 @@ void GetRootVmxState(UINT32 CpuIndex, ROOT_VMX_STATE * RootState)
 	UINT64 RootGuestIDTRBase_M;
 	UINT64 RootGuestIDTRLimit_M;
 	UINT64 RootGuestRSP_M;
-	UINT64 RootGuestRIP_M;
 	UINT64 RootContExecVmcs_M;
 	UINT64 RootContLinkVmcs_M;
+#endif
+        UINT64 RootGuestRIP_M;
 
 	UINT32 FlushCount;
 	UINT32 i;
@@ -163,6 +173,10 @@ void GetRootVmxState(UINT32 CpuIndex, ROOT_VMX_STATE * RootState)
 		RootState->ExecutiveVMCS,
 		RootState->LinkVMCS));
 #endif
+
+	// for every vmexit, the interupted state is in the Guest registers
+	// the root state will be found here with the processor is in root
+
 	RootState->RootGuestCR0  = VmReadN(VMCS_N_GUEST_CR0_INDEX);
 	RootState->RootGuestCR3  = VmReadN(VMCS_N_GUEST_CR3_INDEX);
 	RootState->RootGuestCR4  = VmReadN(VMCS_N_GUEST_CR4_INDEX);
@@ -188,12 +202,13 @@ void GetRootVmxState(UINT32 CpuIndex, ROOT_VMX_STATE * RootState)
 
 		if(RootState->LinkVMCS != 0xFFFFFFFFFFFFFFFF)
 		{
-			RootState->VmcsType = 1;   // guest-VM being sericed by VMM
+			RootState->VmcsType = 1;   // guest-VM being serviced by VMM
 			HostRootVMCS = RootState->LinkVMCS;
 			RootState->VmxState = VMX_STATE_ROOT;
 		}
 		else
 		{
+			// no active VMCS
 			HostRootVMCS = RootState->ExecutiveVMCS;
 			RootState->VmcsType = 2;
 			RootState->VmxState = VMX_STATE_ROOT;
@@ -208,11 +223,13 @@ void GetRootVmxState(UINT32 CpuIndex, ROOT_VMX_STATE * RootState)
 		RootState->VmxState = VMX_STATE_GUEST;
 	}
 
-	AsmVmClear(&(CurrentVMCSSave));
+	//AsmVmClear(&(CurrentVMCSSave));
 	AsmVmPtrStore(&CurrentVMCSSave);
-	RootGuestRIP_M = *(UINT64 *)((UINTN)CurrentVMCSSave +
-				(UINTN)VMCS_N_GUEST_RIP_OFFSET);
 
+	RootGuestRIP_M = *(UINT64 *)((UINTN)CurrentVMCSSave +
+		(UINTN)VMCS_N_GUEST_RIP_OFFSET);
+
+#if 0
 VmcsFlushStart:
 	FlushCount = 0;
 
@@ -251,8 +268,6 @@ VmcsFlushStart:
 
 		memcpy(DummyVmcs[FlushCount], &VmxRevId, 4);
 		AsmVmPtrLoad((UINT64 *) &DummyVmcs[FlushCount]);
-		RootGuestRIP_M = *(UINT64 *)((UINTN)CurrentVMCSSave +
-			(UINTN)VMCS_N_GUEST_RIP_OFFSET);  // try again
 		FlushCount++;
 	}
 
@@ -280,9 +295,10 @@ VmcsFlushStart:
 	//AsmVmPtrStore(&CurrentVMCSSave);
 	//AsmVmClear(&(CurrentVMCSSave));
 	//AsmVmPtrLoad(&HostRootVMCS);
-
+#endif
 	RootState->HostRootVMCS = HostRootVMCS;
 
+#ifdef VMCSDEBUGPRINT
 	RootGuestCR0_M  = *(UINT64 *)((UINTN)HostRootVMCS +
 				(UINTN)VMCS_N_GUEST_CR0_OFFSET);
 	RootGuestCR3_M  = *(UINT64 *)((UINTN)HostRootVMCS +
@@ -305,64 +321,76 @@ VmcsFlushStart:
 				(UINTN)VMCS_64_CONTROL_EXECUTIVE_VMCS_PTR_OFFSET);
 	RootContLinkVmcs_M = *(UINT64 *)((UINTN)HostRootVMCS +
 			(UINTN)VMCS_64_GUEST_VMCS_LINK_PTR_OFFSET);
+	RootGuestRIP_M = *(UINT64 *)((UINTN)CurrentVMCSSave +
+                                (UINTN)VMCS_N_GUEST_RIP_OFFSET);
 
-#ifdef VMCSDEBUGPRINT
-	if(RootState->VmcsType !=2)  // only want active Vmcs
+	DEBUG((EFI_D_INFO,
+		"%ld GetRootVmxState (%d) CurrentVmcs 0x%016llx HostRootVmcs_p 0x%016llx\n G_CR0p %llx\n G_CR3p %llx\n G_CR4p %llx\n G_GDTRp %llx:%llx\n G_IDTRp %llx:%llx\n G_RSPp %llx\n G_RIPp %llx\n H_CR0 %llx\n H_CR3 %llx\n H_CR4 %llx\n H_GDTR %llx\n H_IDTR %llx\n H_RSP %llx\n H_RIP %llx\n H_EPT 0x%016llx\n\n VMXONp %llx\n ExecutiveVMCSp %llx\n LinkVMCSp %llx\n EPTp %llx\n\n",
+		CpuIndex,
+		RootState->VmcsType,
+		CurrentVMCSSave,
+		RootState->HostRootVMCS,
+		RootState->RootGuestCR0,
+		RootState->RootGuestCR3,
+		RootState->RootGuestCR4,
+		RootState->RootGuestGDTRBase,
+		RootState->RootGuestGDTRLimit,
+		RootState->RootGuestIDTRBase,
+		RootState->RootGuestIDTRLimit,
+		RootState->RootGuestRSP,
+		RootState->RootGuestRIP,
+		RootState->RootHostCR0,
+		RootState->RootHostCR3,
+		RootState->RootHostCR4,
+		RootState->RootHostGDTRBase,
+		RootState->RootHostIDTRBase,
+		RootState->RootHostRSP,
+		RootState->RootHostRIP,
+		RootState->RootHostEPT,
+
+		RootState->Vmxon,
+		RootState->ExecutiveVMCS,
+		RootState->LinkVMCS,
+		RootState->RootContEPT));
+
+	DEBUG((EFI_D_INFO,
+		"%ld GetRootVmxState (%d) Host Vmcs\n G_CR0 %llx\n G_CR3 %llx\n G_CR4 %llx\n G_GDTR %llx:%llx\n G_IDTR %llx:%llx\n G_RSP %llx\n G_RIP %llx\n C_ExecVMCS %llx\n C_LinkVMCSm %llx\n\n",
+		CpuIndex,
+                RootState->VmcsType,
+		RootGuestCR0_M,
+		RootGuestCR3_M,
+		RootGuestCR4_M,
+		RootGuestGDTRBase_M,
+		RootGuestGDTRLimit_M,
+		RootGuestIDTRBase_M,
+		RootGuestIDTRLimit_M,
+		RootGuestRSP_M,
+		RootGuestRIP_M,
+		RootContExecVmcs_M,
+		RootContLinkVmcs_M));
+
+	if (RootState->VmcsType == 3)
 	{
+		// print the execution controls, etc for guest vmcs
 		DEBUG((EFI_D_INFO,
-			"%ld GetRootVmxState (%d) HostRootVmcs 0x%016llx\n G_CR0 %llx\n G_CR3 %llx\n G_CR4 %llx\n G_GDTR %llx:%llx\n G_IDTR %llx:%llx\n G_RSP %llx\n G_RIP %llx\n", 
+			"%ld GetRootVmxState Guest Execution controls\n PinBasedExCont    0x%08lx\n PinBasedExContMSR 0x%016llx\n ProcessorBasedExCont    0x%08lx\n ProcessorBasedExContMSR 0x%016llx\n 2ndProcssorBasedExCont    0x%08lx\n 2ndProcssorBasedExContMSR 0x%016llx\n\n",
 			CpuIndex,
-			RootState->VmcsType, 
-			RootState->HostRootVMCS,
-			RootState->RootGuestCR0,
-			RootState->RootGuestCR3,
-			RootState->RootGuestCR4,
-			RootState->RootGuestGDTRBase,
-			RootState->RootGuestGDTRLimit,
-			RootState->RootGuestIDTRBase,
-			RootState->RootGuestIDTRLimit,
-			RootState->RootGuestRSP,
-			RootState->RootGuestRIP));
-
-		DEBUG((EFI_D_INFO,
-			"%ld GetRootVmxState (%d) (control) HostRootVmcs 0x%016llx\n VMXON %llx\n ExecutiveVMCS %llx\n LinkVMCS %llx\n EPT %llx\n",
-			CpuIndex,
-			RootState->VmcsType,
-			RootState->HostRootVMCS,
-			RootState->Vmxon,
-			RootState->ExecutiveVMCS,
-			RootState->LinkVMCS,
-			RootState->RootContEPT));
-
-		DEBUG((EFI_D_INFO,
-			"%ld GetRootVmxState (%d) (memory) HostRootVmcs 0x%016llx\n G_CR0m %llx\n G_CR3m %llx\n G_CR4m %llx\n G_GDTRm %llx:%llx\n G_IDTRm %llx:%llx\n G_RSPm %llx\n G_RIPm %llx\n", 
-			CpuIndex,
-			RootState->VmcsType,
-			RootState->HostRootVMCS,
-			RootGuestCR0_M,
-			RootGuestCR3_M,
-			RootGuestCR4_M,
-			RootGuestGDTRBase_M,
-			RootGuestGDTRLimit_M,
-			RootGuestIDTRBase_M,
-			RootGuestIDTRLimit_M,
-			RootGuestRSP_M,
-			RootGuestRIP_M));
-
-		DEBUG((EFI_D_INFO,
-			"%ld GetRootVmxState (%d) (memory) HostRootVmcs 0x%016llx\n C_ExecVMCSm %llx\n C_LinkVMCSm %llx\n",
-			CpuIndex,
-			RootState->VmcsType,
-			RootState->HostRootVMCS,
-			RootContExecVmcs_M,
-			RootContLinkVmcs_M));
+			*(UINT32 *)((UINTN)HostRootVMCS +
+				VMCS_32_CONTROL_PIN_BASED_VM_EXECUTION_OFFSET),
+			AsmReadMsr32(IA32_VMX_PINBASED_CTLS_MSR_INDEX),
+			*(UINT32 *)((UINTN)HostRootVMCS +
+				VMCS_32_CONTROL_PROCESSOR_BASED_VM_EXECUTION_OFFSET),
+			AsmReadMsr32(IA32_VMX_PROCBASED_CTLS_MSR_INDEX),
+			*(UINT32 *)((UINTN)HostRootVMCS +
+				VMCS_32_CONTROL_2ND_PROCESSOR_BASED_VM_EXECUTION_OFFSET),
+			AsmReadMsr32(IA32_VMX_PROCBASED_CTLS2_MSR_INDEX)));
 	}
 #endif
-
 	// need to save the root vmx host structures
 	if(RootState->VmxState == VMX_STATE_ROOT)
 	{
 		// if root, these entries are meaningless, so clear them out
+#if 0
 		RootState->RootHostCR0   = 0;
 		RootState->RootHostCR3   = 0;
 		RootState->RootHostCR4   = 0;
@@ -371,47 +399,29 @@ VmcsFlushStart:
 		RootState->RootHostRSP   = 0;
 		RootState->RootHostRIP   = 0;
 		RootState->RootHostEPT   = 0;
-
-		// move the memory/root VMCS elements into place 
-
-		RootState->RootGuestCR0 = *(UINT64 *)((UINTN)HostRootVMCS +
-                                (UINTN)VMCS_N_GUEST_CR0_OFFSET);
-		RootState->RootGuestCR3  = *(UINT64 *)((UINTN)HostRootVMCS +
-                                (UINTN)VMCS_N_GUEST_CR3_OFFSET);
-		RootState->RootGuestCR4  = *(UINT64 *)((UINTN)HostRootVMCS +
-                                (UINTN)VMCS_N_GUEST_CR4_OFFSET);
-		RootState->RootGuestGDTRBase = *(UINT64 *)((UINTN)HostRootVMCS +
-                                (UINTN)VMCS_N_GUEST_GDTR_BASE_OFFSET);
-		RootState->RootGuestGDTRLimit = (*(UINT64 *)((UINTN)HostRootVMCS +
-                        (UINTN)VMCS_32_GUEST_GDTR_LIMIT_OFFSET)) & 0x00000000FFFFFFFF;
-		RootState->RootGuestIDTRBase = *(UINT64 *)((UINTN)HostRootVMCS +
-                                (UINTN)VMCS_N_GUEST_IDTR_BASE_OFFSET);
-		RootState->RootGuestIDTRLimit = (*(UINT64 *)((UINTN)HostRootVMCS +
-				(UINTN)VMCS_32_GUEST_LDTR_LIMIT_OFFSET)) & 0x00000000FFFFFFFF;
-		RootState->RootGuestRSP  = *(UINT64 *)((UINTN)HostRootVMCS +
-                                (UINTN)VMCS_N_GUEST_RSP_OFFSET);
-		RootState->RootGuestRIP = *(UINT64 *)((UINTN)HostRootVMCS +
-                                (UINTN)VMCS_N_GUEST_RIP_OFFSET);
+#endif
 	}
 	else
 	{
+		// for non-root, the root start state is found in the host portion
+		// of the Guest VMCS
 		RootState->RootHostCR0 = *(UINT64 *)((UINTN)HostRootVMCS +
-					(UINTN)VMCS_N_HOST_CR0_OFFSET);
+					(UINT64)VMCS_N_HOST_CR0_OFFSET);
 		RootState->RootHostCR3 = *(UINT64 *)((UINTN)HostRootVMCS +
-					(UINTN)VMCS_N_HOST_CR3_OFFSET);
+					(UINT64)VMCS_N_HOST_CR3_OFFSET);
 		RootState->RootHostCR4 = *(UINT64 *)((UINTN)HostRootVMCS +
-					(UINTN)VMCS_N_HOST_CR4_OFFSET);
-		RootState->RootHostGDTRBase = *(UINTN *)((UINTN)HostRootVMCS +
-					(UINTN)VMCS_N_HOST_GDTR_BASE_OFFSET);
-		RootState->RootHostIDTRBase = *(UINTN *)((UINTN)HostRootVMCS +
-					(UINTN)VMCS_N_HOST_IDTR_BASE_OFFSET);
+					(UINT64)VMCS_N_HOST_CR4_OFFSET);
+		RootState->RootHostGDTRBase = *(UINT64 *)((UINTN)HostRootVMCS +
+					(UINT64)VMCS_N_HOST_GDTR_BASE_OFFSET);
+		RootState->RootHostIDTRBase = *(UINT64 *)((UINTN)HostRootVMCS +
+					(UINT64)VMCS_N_HOST_IDTR_BASE_OFFSET);
 
-		RootState->RootHostRSP = *(UINTN*)((UINTN)HostRootVMCS +
-					(UINTN)VMCS_N_HOST_RSP_OFFSET);
-		RootState->RootHostRIP = *(UINTN*)((UINTN)HostRootVMCS +
-					(UINTN)VMCS_N_HOST_RIP_OFFSET);
-		RootState->RootHostEPT = *(UINTN*)((UINTN)HostRootVMCS +
-					(UINTN)VMCS_64_CONTROL_EPT_PTR_OFFSET);
+		RootState->RootHostRSP = *(UINT64*)((UINT64)HostRootVMCS +
+					(UINT64)VMCS_N_HOST_RSP_OFFSET);
+		RootState->RootHostRIP = *(UINT64*)((UINT64)HostRootVMCS +
+					(UINT64)VMCS_N_HOST_RIP_OFFSET);
+		RootState->RootHostEPT = *(UINT64*)((UINT64)HostRootVMCS +
+					(UINT64)VMCS_64_CONTROL_EPT_PTR_OFFSET);
 	}
 	// Indicate to the master that we are all done
 
@@ -419,25 +429,7 @@ VmcsFlushStart:
 
 	// restore the current working vmcs
 
-	//AsmVmClear(&HostRootVMCS);
-	//AsmVmPtrLoad(&CurrentVMCSSave); 
-#ifdef VMCSDEBUGPRINT
-	if(RootState->VmcsType != 2)
-	{
-		DEBUG((EFI_D_INFO,
-			"%ld GetRootVmxState (%d) \n H_CR0 %llx\n H_CR3 %llx\n H_CR4 %llx\n H_GDTR %llx\n H_IDTR %llx\n H_RSP %llx\n H_RIP %llx\n H_EPT %llx\n", 
-			CpuIndex,
-			RootState->VmcsType,
-			RootState->RootHostCR0,
-			RootState->RootHostCR3,
-			RootState->RootHostCR4,
-			RootState->RootHostGDTRBase,
-			RootState->RootHostIDTRBase,
-			RootState->RootHostRSP,
-			RootState->RootHostRIP,
-			RootState->RootHostEPT));
-	}
-#endif
+	AsmVmPtrLoad(&CurrentVMCSSave);
 }
 
 // setups the offsets needed for accessing in memory the root vmcs state (the host part at least)
@@ -474,6 +466,11 @@ void SetupGetRootVmxState()
 				GetVmcsOffset(VMCS_64_CONTROL_EXECUTIVE_VMCS_PTR_INDEX);
 	VMCS_64_GUEST_VMCS_LINK_PTR_OFFSET =
 				GetVmcsOffset(VMCS_64_GUEST_VMCS_LINK_PTR_INDEX);
+#if VMCSDEBUGPRINT
+	VMCS_32_CONTROL_PIN_BASED_VM_EXECUTION_OFFSET = GetVmcsOffset(VMCS_32_CONTROL_PIN_BASED_VM_EXECUTION_INDEX);
+	VMCS_32_CONTROL_PROCESSOR_BASED_VM_EXECUTION_OFFSET = GetVmcsOffset(VMCS_32_CONTROL_PROCESSOR_BASED_VM_EXECUTION_INDEX);
+	VMCS_32_CONTROL_2ND_PROCESSOR_BASED_VM_EXECUTION_OFFSET = GetVmcsOffset(VMCS_32_CONTROL_2ND_PROCESSOR_BASED_VM_EXECUTION_INDEX);
+#endif
 	// need to initialize the VMCS Offset table, if it has not already been done
 	VMCS_OFFSET_READY = 1;
 }
@@ -514,46 +511,31 @@ void PrintVmxState(UINT32 CpuIndex, ROOT_VMX_STATE * RootState)
 			RootState->ExecutiveVMCS));
 	}
 
-		if(RootState->VmcsType !=2)  // only want active Vmcs
-	{
-		DEBUG((EFI_D_INFO,
-			"%ld PrintVmxState (%d) HostRootVmcs 0x%016llx\n G_CR0 %llx\n G_CR3 %llx\n G_CR4 %llx\n G_GDTR %llx:%llx\n G_IDTR %llx:%llx\n G_RSP %llx\n G_RIP %llx\n", 
-			CpuIndex,
-			RootState->VmcsType, 
-			RootState->HostRootVMCS,
-			RootState->RootGuestCR0,
-			RootState->RootGuestCR3,
-			RootState->RootGuestCR4,
-			RootState->RootGuestGDTRBase,
-			RootState->RootGuestGDTRLimit,
-			RootState->RootGuestIDTRBase,
-			RootState->RootGuestIDTRLimit,
-			RootState->RootGuestRSP,
-			RootState->RootGuestRIP));
+	DEBUG((EFI_D_INFO,
+		"%ld PrintVmxState (%d) HostRootVmcs 0x%016llx\n G_CR0 %llx\n G_CR3 %llx\n G_CR4 %llx\n G_GDTR %llx:%llx\n G_IDTR %llx:%llx\n G_RSP %llx\n G_RIP %llx\n VMXON %llx\n ExecutiveVMCS %llx\n LinkVMCS %llx\n H_CR0 %llx\n H_CR3 %llx\n H_CR4 %llx\n H_GDTR %llx\n H_IDTR %llx\n H_RSP %llx\n H_RIP %llx\n H_EPT %llx\n\n",
 
-		DEBUG((EFI_D_INFO,
-			"%ld PrintVmxState (%d) (control) HostRootVmcs 0x%016llx\n VMXON %llx\n ExecutiveVMCS %llx\n LinkVMCS %llx\n EPT %llx\n",
-			CpuIndex,
-			RootState->VmcsType,
-			RootState->HostRootVMCS,
-			RootState->Vmxon,
-			RootState->ExecutiveVMCS,
-			RootState->LinkVMCS,
-			RootState->RootContEPT));
-#if 0
-		DEBUG((EFI_D_INFO,
-			 "%ld PrintVmxState (%d) \n H_CR0 %llx\n H_CR3 %llx\n H_CR4 %llx\n H_GDTR %llx\n H_IDTR %llx\n H_RSP %llx\n H_RIP %llx\n H_EPT %llx\n", 
-			CpuIndex,
-			RootState->VmcsType,
-			RootState->RootHostCR0,
-			RootState->RootHostCR3,
-			RootState->RootHostCR4,
-			RootState->RootHostGDTRBase,
-			RootState->RootHostIDTRBase,
-			RootState->RootHostRSP,
-			RootState->RootHostRIP,
-			RootState->RootHostEPT));
-#endif
-	}
+		CpuIndex,
+		RootState->VmcsType,
+		RootState->HostRootVMCS,
+		RootState->RootGuestCR0,
+		RootState->RootGuestCR3,
+		RootState->RootGuestCR4,
+		RootState->RootGuestGDTRBase,
+		RootState->RootGuestGDTRLimit,
+		RootState->RootGuestIDTRBase,
+		RootState->RootGuestIDTRLimit,
+		RootState->RootGuestRSP,
+		RootState->RootGuestRIP,
+		RootState->Vmxon,
+		RootState->ExecutiveVMCS,
+		RootState->LinkVMCS,
+		RootState->RootHostCR0,
+		RootState->RootHostCR3,
+		RootState->RootHostCR4,
+		RootState->RootHostGDTRBase,
+		RootState->RootHostIDTRBase,
+		RootState->RootHostRSP,
+		RootState->RootHostRIP,
+		RootState->RootHostEPT));
 }
 
