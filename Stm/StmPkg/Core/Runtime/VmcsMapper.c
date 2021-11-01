@@ -319,6 +319,8 @@ void MapVmcs ()
 	char Line[150];
 	char * EvalVmcs;
 
+	UINT32 VmcsSize = GetVmcsSize();
+
 	if(VmcsMapInit == 1)
 	{
 		return;
@@ -334,16 +336,16 @@ void MapVmcs ()
 	// fill the VMCS regions with 16bit values that will provide us 
 	// with indexes into the VMCS
 
-	for( index = 4; index < SIZE_4KB; index += 2 )
+	for( index = 4; index < VmcsSize; index += 2 )
 	{
-		*(unsigned short *)(EvalVmcs + index) = index;
+		*(unsigned short *)(&EvalVmcs[index]) = index;
 	}
 
 	VmxRevId = AsmReadMsr32(IA32_VMX_BASIC_MSR_INDEX);
 	memcpy(EvalVmcs, &VmxRevId, 4);
 
 	AsmVmPtrStore(&CurrentVMCSSave);      // save off the current Vmcs pointer
-	AsmVmClear(&CurrentVMCSSave);
+	//AsmVmClear(&CurrentVMCSSave);
 
 	AsmVmPtrLoad((UINT64 *) &EvalVmcs);              // load our indexed Vmcs
 
