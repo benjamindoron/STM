@@ -1,8 +1,8 @@
 
 #include <Base.h>
 
-#define _PCD_VALUE_PcdMaximumUnicodeStringLength  256U
-#define _PCD_VALUE_PcdMaximumAsciiStringLength  256U
+#define _PCD_VALUE_PcdMaximumUnicodeStringLength  512U
+#define _PCD_VALUE_PcdMaximumAsciiStringLength  512U
 
 #ifdef RELEASE
 #define _PCD_VALUE_PcdDebugPrintErrorLevel  0x00000000U
