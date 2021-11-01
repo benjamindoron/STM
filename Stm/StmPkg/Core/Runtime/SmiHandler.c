@@ -132,7 +132,7 @@ VOID
 	// Dispatch
 	//
 	if (InfoBasic.Bits.Reason >= VmExitReasonMax) {
-		DEBUG ((EFI_D_ERROR, "%ld !!!UnknownReason: %d!!!\n", Index, InfoBasic.Bits.Reason));
+		DEBUG ((EFI_D_ERROR, "%ld !!!SMI - UnknownReason: %d!!!\n", Index, InfoBasic.Bits.Reason));
 		DumpVmcsAllField (Index);
 
 		CpuDeadLoop ();
@@ -159,15 +159,23 @@ VOID
 	Rflags = AsmVmResume (&mGuestContextCommonSmi.GuestContextPerCpu[Index].Register);
 	// BUGBUG: - AsmVmLaunch if AsmVmResume fail
 	if (VmRead32 (VMCS_32_RO_VM_INSTRUCTION_ERROR_INDEX) == VmxFailErrorVmResumeWithNonLaunchedVmcs) {
-		//    DEBUG ((EFI_D_ERROR, "(STM):o(\n", (UINTN)Index));
+		DEBUG ((EFI_D_ERROR, "%ld :o(\n", (UINTN)Index));
 		Rflags = AsmVmLaunch (&mGuestContextCommonSmi.GuestContextPerCpu[Index].Register);
+	}
+	if (VmRead32 (VMCS_32_RO_VM_INSTRUCTION_ERROR_INDEX) == VmxFailErrorVmEntryWithInvalidVmExectionControlFieldsInExecutiveVmcs) {
+		DEBUG ((EFI_D_ERROR, "%ld Error in Executive VMCS Execution Control Fields. Exec VMCS pointer: 0x%016llx\n",
+				(UINTN)Index,
+				VmRead64(VMCS_64_CONTROL_EXECUTIVE_VMCS_PTR_INDEX)));
+		Rflags = AsmVmPtrLoad((UINT64 *)VmRead64(VMCS_64_CONTROL_EXECUTIVE_VMCS_PTR_INDEX));
+		DumpVmcsAllField (Index);
+		CpuDeadLoop();
 	}
 
 	AcquireSpinLock (&mHostContextCommon.DebugLock);
 
-	DEBUG ((EFI_D_ERROR, "%ld StmHandlerSmi - !!!ResumeGuestSmi FAIL!!!", (UINTN)Index));
-	DEBUG ((EFI_D_ERROR, "%ld StmHandlerSmi - Rflags: %08x\n", Index, Rflags));
-	DEBUG ((EFI_D_ERROR, "%ld StmHandlerSmi - VMCS_32_RO_VM_INSTRUCTION_ERROR: %08x\n", Index, (UINTN)VmRead32 (VMCS_32_RO_VM_INSTRUCTION_ERROR_INDEX)));
+	DEBUG ((EFI_D_ERROR, "%ld StmHandlerSmi - !!!ResumeGuestSmi FAIL!!!\n", (UINTN)Index));
+	DEBUG ((EFI_D_ERROR, "%ld StmHandlerSmi - Rflags: 0x%08x\n", Index, Rflags));
+	DEBUG ((EFI_D_ERROR, "%ld StmHandlerSmi - VMCS_32_RO_VM_INSTRUCTION_ERROR: 0x%08x\n", Index, (UINTN)VmRead32 (VMCS_32_RO_VM_INSTRUCTION_ERROR_INDEX)));
 	DumpVmcsAllField (Index);
 	DumpRegContext (&mGuestContextCommonSmi.GuestContextPerCpu[Index].Register, Index);
 	DumpGuestStack(Index);
