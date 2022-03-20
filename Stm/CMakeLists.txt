@@ -3,6 +3,9 @@ cmake_minimum_required(VERSION 3.13)
 
 project(stm C ASM)
 
+include("${PROJECT_SOURCE_DIR}/cmake/CheckGit.cmake")
+CheckGitSetup()
+
 if("${BIOS}" STREQUAL "coreboot")
 	add_definitions( -DCOREBOOT32 )
 	message("Building for Coreboot")
@@ -52,6 +55,7 @@ include_directories("${PROJECT_SOURCE_DIR}/StmPkg/Core"
         "${PROJECT_SOURCE_DIR}/StmPkg/Include"
         "${PROJECT_SOURCE_DIR}/StmPkg/Include/x64"
 	"${PROJECT_SOURCE_DIR}/StmPkg/Core/Runtime"
+	"${PROJECT_SOURCE_DIR}/cmake"
 )
 
 add_subdirectory(StmPkg/EdkII/MdePkg/Library/BaseLib)

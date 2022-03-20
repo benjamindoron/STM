@@ -16,15 +16,8 @@ target_include_directories(StmInit PUBLIC
 )
 
 target_link_libraries(StmInit PUBLIC
- #BaseLib
- #BaseMemoryLib
- #IoLib
- #PciLib
  SynchronizationLib
- #DebugLib
- #StmLib
- #PcdLib
- #StmPlatformLib
  StmRuntime
  Resource
+ git_version
 )

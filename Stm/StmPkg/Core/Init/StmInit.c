@@ -16,6 +16,7 @@
 #include "PeStm.h"
 #include <Library/PcdLib.h>
 #include <string.h>
+#include "git_version.h"
 
 extern PE_SMI_CONTROL PeSmiControl;
 
@@ -676,6 +677,8 @@ BspInit (
 
   DEBUG ((EFI_D_INFO, "   ********************** STM/PE *********************\n"));
   DEBUG ((EFI_D_INFO, "!!!STM build time - %a %a!!!\n", (CHAR8 *)__DATE__, (CHAR8 *)__TIME__));
+  DEBUG ((EFI_D_INFO, "!!!STM Git Hash - %c%c%c%c%c%c%c%c !!!\n", kGitHash[0], kGitHash[1], kGitHash[2],
+			kGitHash[3], kGitHash[4], kGitHash[5], kGitHash[6], kGitHash[7]));
   DEBUG ((EFI_D_INFO, "!!!STM Relocation DONE!!!\n"));
   DEBUG ((EFI_D_INFO, "!!!Enter StmInit (BSP)!!! - %d (%x)\n", (UINTN)0, (UINTN)ReadUnaligned32 ((UINT32 *)&Register->Rax)));
 
