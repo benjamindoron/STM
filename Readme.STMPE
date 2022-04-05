@@ -5,30 +5,29 @@ STMPE Addtions to the STM API
  AddPEVMtempVMCALL:
  AddPEVMpermVMCALL:
  
-	Create a protected execution (PE) virtual machine (VM) and load a
-	module to be executed in that VM.
+	Create a protected execution (PE) virtual machine (VM) and load a module to be executed
+        !in that VM.
  
  AddPEVMtempVMCALL: 
  
-	The module is temporarily loaded in a VM,
-	executed, and the VM torn down afterwards. i.e. protected execution.
+	The module is temporarily loaded in a VM, executed, and the VM torn down afterwards. i.e.
+        protected execution.
 
 	Input and Return register values: same as AddPEVMpermVMCALL.
  
  AddPEVMpermVMCALL: 
  
-	The module is permanently loaded in a VM and
-	persists.  It is expected that this will be allowed only when the MLE
-	is initially brought up to allow for a measurement engine to be
+	The module is permanently loaded in a VM and persists.  It is expected that this will be
+        allowed only when the MLE is initially brought up to allow for a measurement engine to be
 	loaded. This module is executed by the RunPeVmVMCALL.
 
 	Input registers:
  
 	EAX = STM_API_ADD_TEMP_PE or STM_API_ADD_PERM_PE_VM
 	EBX = low 32 bits of physical address of a caller created structure
-		  containing module load information (struct module_info)
+              containing module load information (struct module_info)
 	ECX = high 32 bits of physical address of a caller created structure
-          containing module load information (struct module_info)
+              containing module load information (struct module_info)
  
 	Return register values:
  
@@ -38,9 +37,8 @@ STMPE Addtions to the STM API
 
  RunPeVmVMCALL
 
-	This call runs the VM that was created via the AddSTMVmVMCALL vmcall.
-	Entrypoint into the module will be that defined during the
-	AddSTMVmVMCALL.
+	This call runs the VM that was created via the AddSTMVmVMCALL vmcall.  Entrypoint into the
+        module will be that defined during the AddSTMVmVMCALL.
 
 	Input registers:
 
@@ -49,8 +47,8 @@ STMPE Addtions to the STM API
 	Output registers:
 	
 	CF = 0: No error, EAX set to STM_SUCCESS (0)
-	CF = 1: An error occurred, EAX holds relevant error value EAX = -1 (actual
-            error values TBD)
+	CF = 1: An error occurred, EAX holds relevant error value EAX = -1 (actual error values 
+                TBD)
 
  EndAddPeVmVMCALL
 
@@ -60,11 +58,11 @@ STMPE Addtions to the STM API
 
 Bit definitions for the additions to the STM API
 
-STM_API_ADD_TEMP_PE_VM       0x00010009
-STM_API_ADD_PERM_PE_VM       0x0001000a
-STM_API_END_PERM_PE_VM       0x0001000c
-STM_API_RUN_PERM_PE_VM       0x0001000b
-STM_API_ADD_PERM_PE_VM_NORUN 0x0001000d
+       STM_API_ADD_TEMP_PE_VM       0x00010009
+       STM_API_ADD_PERM_PE_VM       0x0001000a
+       STM_API_END_PERM_PE_VM       0x0001000c
+       STM_API_RUN_PERM_PE_VM       0x0001000b
+       STM_API_ADD_PERM_PE_VM_NORUN 0x0001000d
 
 
  Information block used to pass information about the PE module to the STM:
@@ -125,9 +123,9 @@ error returns - placed in eax upon return to caller:
 	                                           (or located such that it overflows
 		                                       the end of the address space
 	PE_NO_PT_SPACE               0x80040004  - not enough space left for PE VM
-                                               page tables
+                                                   page tables
 	PE_NO_RL_SPACE               0x80040005  - not enough space left for resource
-                                               list
+                                                   list
 	PE_MEMORY_AC_SETUP_FAILURE   0x80040006  - could not setup accesses to PE space
 		                                       (internal error)
 	PE_SHARED_MEMORY_SETUP_ERROR 0x80040007  - could not setup shared memory
@@ -135,13 +133,13 @@ error returns - placed in eax upon return to caller:
 	PE_SHARED_MAP_FAILURE        0x80040009  - could not map in the shared page
 	PE_VMCS_ALLOC_FAIL           0x8004000A  - could not allocate VMCS memory
 	PE_VMLAUNCH_ERROR            0x8004000B  - attempted to launch PE VM with bad
-                                             - guest VM state
+                                                   guest VM state
 	PE_VM_BAD_ACCESS             0x8004000C  - PE VM attempted to access protected
-                                               memory out of bounds)
+                                                   memory out of bounds)
         PE_VM_SETUP_ERROR_D_L        0x8004000D  - CS_D and CS_L cannot be set to one at
                                                the same time
 	PE_VM_SETUP_ERROR_IA32E_D    0x8004000E  - SET_IA32E must be set when CS_L is
-                                               set
+                                                   set
         PE_VM_TRIPLE_FAULT           0x8004000F  - PE VM crashed with a triple fault
         PE_VM_PAGE_FAULT             0x80040010  - PE VM crashed with a page fault
 
@@ -154,16 +152,189 @@ Region list structure
 	} __attribute__((__packed__));
 
 
+STM/PE and VM/PE interaction
+
+ Note: The current VM/PE application is XHIM (Xen Integrity Monitory) and the interface is biased
+ towards supporting that application.  The interface will be modified as other applications are 
+ introduced for other VM/PE's.
+
+
+When the XHIM VM/PE is started, the register contents are as follows:
+
+	RBX - Shared page (low)
+	RCX - Shared page (high)
+	RDX - Shared STM Page
+
+  Shared Page - (64 bit address) This is a region of memory that is located outside of
+  SMRAM.  It is readable/writeable by the VM/PE application.  Generally, used as an
+  output buffer for the VM/PE application.
+
+  Shared STM Page - This is a region shared between shared between the VM/PE application.
+  The VM/PE application has readonly access.  This region begins at the top of the PE/VM
+  memory and is used, in the case of XHIM, to provide the processor state information.
+
+
+VM/PE VMCALLS for XHIM
+
+
+ STM_API_MAP_ADDRESS_RANGE - Maps a non-SMRAM address range into the address space accessible
+ by the PE/VM.  This address range is read-only for the VM/PE.
+
+                           RBX - Address of parameter block (Upper)
+                           RCX - Address of parameter block (Lower)
+
+                    Format of parameter block: 
+
+                           u64 - Physical address to be mapped
+                           u64 - Number of pages to be mapped
+
+                    Status return
+
+                           RFLAGS_CF = 0 success
+                           RAX = STM_SUCCESS
+
+                           RFLAGS_CF = 1 fail
+                           RAX = ERROR_STM_CACHE_TYPE_NOT_SUPPORTED
+                                 ERROR_STM_PAGE_NOT_FOUND
+                                 ERROR_STM_SECURITY_VIOLATION
+
+ STM_API_GET_VMCS_MAP - Provides the VMCS map.  The VMCS map is created when the VM/PE is initially
+ setup.  It is a mapping between the relative VMCS location and the associated VMCS data field.
+ Caution must be exercised when using this mapping as the x86 processors cache the VMCS and in-
+ memory values may be stale as the current value may be in the processor cache.
+
+                           RBX - Address for VMCS map (Upper)
+                           RCX - Address for VMCS map (Lower)
+
+                                 One page should be allocated for this map to prevent overrun of
+                                 the VM/PE memory.
+
+                                 Use the VMCS field encoding as an index into a 16-bit array, where
+                                 each array element holds the offset  of the data in the VMCS.
+                                 Note: this data may become stale due to processor caching.
+
+                    Status return
+
+                          RFLAGS_CF = 0 success
+                          RAX = STM_SUCCESS
+
+                          RFLAGS_CF = 1 fail
+                          RAX = ERROR_STM_CACHE_TYPE_NOT_SUPPORTED
+                                ERROR_STM_PAGE_NOT_FOUND
+                                ERROR_STM_SECURITY_VIOLATION
+
+
+END VMCALLS
+
+Processor state information provided by the STM for each XHIM run.
+
+ When a VMEXIT occurs, each processor's state information is contained within the guest portion of
+ the SMM-transfer VMCS.  The SMM-transfer VMCS is created during the STM initial startup and is the
+ current VMCS when the STM gains control after the VMEXIT into SMM.  There is one per processor and
+ is contained within the STM's address space. The STM extracts this state information and places it
+ into the STM shared page for XHIM to access.
+
+ When an SMM VMEXIT occurs, the processor is in either non-root operation or in root operation.  
+ This operational mode determines how the executive-VMCS pointer field is set. If the VMM was in
+ non-root operation the current-VMCS pointer is placed into the executive-VMCS field. Otherwise if
+ the VMM is in root operation the VMXON pointer is placed there.
+
+ The STM uses these values to determine if each operational mode of each processor. And this result
+ is placed into the VmxState field of the ROOT_VMX_STATE data structure for each processor, which
+ has two possible values: VMX_STATE_ROOT (1) and VMX_STATE_GUEST (2).
+
+ There is an additional calculation that STM does based on the VMCS link pointer, which sets the
+ VmcsType field. When VmState is VMX_STATE_ROOT, the VmcsType is 1 when there is no link VMCS and 2
+ when there is a link VMCS. This represents the current VMCS, which that processor may soon do a
+ vmlaunch (or vmresume).
+
+ VmcsType equal to 3 represents VmxState as VMX_STATE_GUEST that has been interrupted. Note: the
+ VMCS link field for this VmcsType may have some application for nested virtualization, but is not
+ calculated. The VMCS link field is provided as LinkVMCS.
+
+Finding the Xen CR3 for each processor.
+
+ For processors that are in VMX_STATE_ROOT the guest CR3 should have the proper value.  However, 
+ this gets complicated by the possibility a processor can be executing either a para-virtualized
+ (PV) machine or is running idle or managing a guest virtual machine. The idle case would have an
+ idle page table associated with it. Each PV would also have an unique page table associated with
+ it.  However, there should be a 64MB region of the PV address space that is linked into Xen's
+ address space. Note: the protection of this space should checked.
+
+ For processors that are in VMX_STATE_GUEST, the Xen CR3 is found in the host CR3 as the guest CR3
+ is local to the virtual machine's address space.
+
+ Note: Ihost values may be be present in the VMX_STATE_ROOT data structures. Don't use these values
+ as they seem to be residue values when the processor was in VMX_STATE_GUEST. They are meaningless
+ in root operation.
+
+Example of VMX_STATE_GUEST/VmcsType=3
+
+ Note: the (3) is the VmcsType. When the type is 3, H_CR3 is the Xen CR3 (actually idle_pg_table).
+
+  (STM) 9 PrintVmxState (3): execVMCS is guest VMCS: 0x000000102FEB3000 using Executive VMCS
+  (STM) 9 PrintVmxState (3) HostRootVmcs 0x000000102FEB3000
+          G_CR0 80050033
+          G_CR3 7CEE6000
+          G_CR4 3626F0
+          G_GDTR FFFF9E7A4940C000:7F
+          G_IDTR FFFFFFFFFF528000:FFFFFFFF
+          G_RSP FFFF9E79BDB2F5C8
+          G_RIP FFFFFFFFA4B9E8F5
+          VMXON 10493F0000
+          ExecutiveVMCS 102FEB3000
+          LinkVMCS FFFFFFFFFFFFFFFF
+          H_CR0 80050033
+          H_CR3 102FFCA000
+          H_CR4 3526E0
+          H_GDTR FFFF8310755F3000
+          H_IDTR FFFF8310493F7000
+          H_RSP FFFF8310493FFF70
+          H_RIP FFFF82D08031A1D0
+          H_EPT 102FFF801E
+
+ This next example is of VMX_STATE_ROOT and note that the VmcsType=1. This is also the processor
+ that XHIM is running on. XHIM will always execute on the same processor. This is done in order to
+ get away from some OS issues with a processor disappearing during extended SMM, so that the 
+ processor has to be "unplugged." Normally, under Xen this is processor #1. However, when there are
+ a lot of processors like on a 16 processor server, that selection is not an invariant and any
+ processor except for processor 0 can be used. So, to use the XHIM processor values, XHIM needs to 
+ figure out which processor it is on or the STM can provide the processor number when the STM
+ passes the processor state information to XHIM.
+
+  (STM) 1 PrintVmxState (1): execVMCS is vmxon: 0x0000001075605000 using VMCS_LINK_POINTER
+  (STM) 1 PrintVmxState (1) HostRootVmcs 0x0000001075605000
+          G_CR0 8005003B
+          G_CR3 7DA4A000
+          G_CR4 3526E0
+          G_GDTR FFFF8310755FF000:EFFF
+          G_IDTR FFFF83107560B000:FFFFFFFF
+          G_RSP FFFF831075617EA8
+          G_RIP FFFF82D0802CE6E8
+          VMXON 1075606000
+          ExecutiveVMCS 1075606000
+          LinkVMCS 1075605000
+          H_CR0 0
+          H_CR3 0
+          H_CR4 0
+          H_GDTR 0
+          H_IDTR 0
+          H_RSP 0
+          H_RIP 0
+          H_EPT 0
+
+
 Notes:
 
-  Interrupts and faults: 
-  
-  If the PE module encounters a fault, the VM/PE will be terminated.  A future
-  STM/PE version will allow for faults to be handled by the PE module.  In this
-  instance, the PE module will need to properly setup an IDT along with the
-  necessary handlers.
+  Interrupts and faults:
+
+  The VM/PE module can be configured at setup time to have the STM inject faults.  In this case,
+  the VM/PE module must setup an IDT along with the necessary fault handlers.  Otherwise, the STM
+  will detect the lack of an IDT and abort the VM/PE when a fault occurs.  Also, when STM is not
+  configured to inject faults, the VM/PE will be terminated when a fault occurs.
  
   The VM/PE will not receive external interrupts.
+
  
   Memory allocation errors: 
   
@@ -176,21 +347,25 @@ Notes:
   be getting so limited as the affect the operation of the STM itself.
   To prevent this, the size of the PE module should be limited to
   ensure that there is enough heap space for the STM to function.
+
  
   MSR and I/O access: 
   
   Read and write access to the IA32_EFER_MSR is allowed, write access 
   to other MSRs are ignored and read attempts to other MSRs will return 0.
 
+
   IO ports: 
   
-  Access attempts to I/O ports are generally ignored except for 0x3D8 and 0x3F8.
+  Access attempts to I/O ports are ignored except for 0x3D8 and 0x3F8.
 
   0x3D8 and 0x3F8 (aka COM2 and COM1 respectively) can be used to send character
   strings through the STM console port.  
   
   No formatting, etc is done (any byte combinations that can pose a security
-  issue will be delt with a necessary).
+  issue will be delt with as necessary).  However, the STM will prefix each line with a '(VM/PE)'
+  and route the character string to either/both a configured serial port and to the coreboot
+  CBMEM console.
 
   for debugging a VM/PE debugging output can be sent through:
 
