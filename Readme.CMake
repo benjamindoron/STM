@@ -7,9 +7,9 @@ This is the CMake based build system for the STM.
 
 		This option starts the SMI Handler in a 32-bit virtual machine.
 
-		Default: the SMI Handler is startted in a 64-bit virtual machine.
+		Default: the SMI Handler is started in a 64-bit virtual machine.
 
-        UARTBASE - suboption: UART I/O address in hex format.
+        UART - suboption: UART I/O address in hex format.
                 
 		This option defines the UART port for STM console output.
 
@@ -55,6 +55,10 @@ Steps for building:
     (1) Create a build directory in the Stm directory.
     (2) Inside the build directory issue "cmake .. " then make
         --> For coreboot do "cmake .. -DBIOS=coreboot" then make
+            (note: the coreboot build will automatically clone and build
+             the most current STM.  These instructions are for a custom
+             version of the STM and require the coreboot config to be
+             updated to point to stm.bin).
     (3) The StmPkg/Core directory will contain the results of the build
 	--> for coreboot: (1) Create a directory
                           (2) Move the stm.bin file to that directory
