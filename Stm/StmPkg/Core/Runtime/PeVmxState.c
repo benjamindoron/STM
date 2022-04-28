@@ -63,10 +63,9 @@ static UINT64 VMCS_32_CONTROL_2ND_PROCESSOR_BASED_VM_EXECUTION_OFFSET;
 int GetMultiProcessorState(UINT32 CpuIndex)
 {
 	UINT32 PeType = PE_PERM;
-	UINT64 * NumProcessors = (UINT64 *) PeVmData[PeType].SharedPageStm;
 
-	// = (ROOT_VMX_STATE *) (NumProcessors + sizeof(*NumProcessors));
-	ROOT_VMX_STATE * RootState;
+	SHARED_PAGE_STM_HEADER * SharedPageStmHeader = (SHARED_PAGE_STM_HEADER *) (UINT64*) PeVmData[PeType].SharedPageStm;
+	ROOT_VMX_STATE * RootState = (ROOT_VMX_STATE *) ((char *) PeVmData[PeType].SharedPageStm + sizeof(SHARED_PAGE_STM_HEADER));
 	UINT32 CpuNum;
 #if 0
 	DEBUG((EFI_D_INFO,
@@ -82,9 +81,7 @@ int GetMultiProcessorState(UINT32 CpuIndex)
 	}
 	// first clear out the data structures and set the number of processors
 
-	//sizeof(*NumProcessors) + sizeof(*NumProcessors));
-	RootState = (ROOT_VMX_STATE *) ((char *)NumProcessors + 64 );
-	*NumProcessors = mHostContextCommon.CpuNum;  // number of CPUs
+	SharedPageStmHeader->NumProcessors = mHostContextCommon.CpuNum;  // number of CPUs
 
 	ZeroMem ((VOID *)(UINTN) RootState,
 			sizeof(ROOT_VMX_STATE) * mHostContextCommon.CpuNum);

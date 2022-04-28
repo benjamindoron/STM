@@ -371,6 +371,13 @@ typedef struct ROOT_VMX_STATE {
 #define VMX_STATE_ROOT   1
 #define VMX_STATE_GUEST  2
 
+typedef struct SHARED_PAGE_STM_HEADER {
+	UINT64 NumProcessors;
+	UINT64 RunCount;
+	UINT64 ExecProcessor;
+	UINT64 Reserved[5];
+} SHARED_PAGE_STM_HEADER;
+
 void GetRootVmxState(UINT32 CpuIndex, ROOT_VMX_STATE * RootState);
 
 #else

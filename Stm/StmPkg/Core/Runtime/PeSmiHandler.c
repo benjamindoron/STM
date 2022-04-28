@@ -37,9 +37,8 @@ static UINT32 retvalue = 0;
 
 UINT32 PeSmiHandler(UINT32 CpuIndex)
 {
-	ROOT_VMX_STATE * RootState;
-	UINT64 * NumProcessors;
 	UINT32 PeType = PE_PERM;
+	ROOT_VMX_STATE * RootState = (ROOT_VMX_STATE *) ((char *) PeVmData[PeType].SharedPageStm + sizeof(SHARED_PAGE_STM_HEADER));
 	UINT32 CpuNum;
 	UINT32 TimerSTS = 0;
 
@@ -73,13 +72,6 @@ UINT32 PeSmiHandler(UINT32 CpuIndex)
 	case PESMIPSMI:
 
 		// VM/PE sends a SMI to the other processors when it wants state information from other CPU's
-
-		NumProcessors = (UINT64 *) PeVmData[PeType].SharedPageStm;
-
-		//sizeof(*NumProcessors) + sizeof(*NumProcessors));
-		RootState = (ROOT_VMX_STATE *) ((char *)NumProcessors + 64);
-
-		// get the local processor state
 
 		GetRootVmxState(CpuIndex, &RootState[CpuIndex]);
 
@@ -124,11 +116,6 @@ UINT32 PeSmiHandler(UINT32 CpuIndex)
 						PeSmiControl.PeSmiState));
 #endif
 					InterlockedCompareExchange32(&PeSmiControl.PeSmiState, PESMIHSMI, PESMIHTMR);
-
-					NumProcessors = (UINT64 *) PeVmData[PeType].SharedPageStm;
-
-					//sizeof(*NumProcessors) + sizeof(*NumProcessors));
-					RootState = (ROOT_VMX_STATE *) ((char *)NumProcessors + 64);
 				}
 			}
 		}
@@ -137,11 +124,6 @@ UINT32 PeSmiHandler(UINT32 CpuIndex)
 
 		if(InterlockedCompareExchange32(&PeSmiControl.PeSmiState, PESMIHTMR, PESMIHTMR) == PESMIHTMR)
 		{
-			NumProcessors = (UINT64 *) PeVmData[PeType].SharedPageStm;
-
-			//sizeof(*NumProcessors) + sizeof(*NumProcessors));
-			RootState = (ROOT_VMX_STATE *) ((char *)NumProcessors + 64);
-
 			GetRootVmxState(CpuIndex, &RootState[CpuIndex]);
                         CpuReadySync(CpuIndex);
 

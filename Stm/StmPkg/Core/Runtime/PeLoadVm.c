@@ -214,10 +214,11 @@ void LaunchPeVm(UINT32 PeType, UINT32 CpuIndex)
 		mGuestContextCommonSmm[PeType].GuestContextPerCpu[0].Register.Rdx));
 
 	PeVmData[PeType].UserModule.RunCount++;
-	// set the runcount into the STM shared page
 
-	*((UINT64 *)(PeVmData[PeType].SharedPageStm + sizeof(UINT64))) =
-			PeVmData[PeType].UserModule.RunCount;
+	// set the runcount into the STM shared page
+	SHARED_PAGE_STM_HEADER * SharedPageStmHeader = (SHARED_PAGE_STM_HEADER *) (UINT64*) PeVmData[PeType].SharedPageStm;
+	SharedPageStmHeader->RunCount = PeVmData[PeType].UserModule.RunCount;
+	SharedPageStmHeader->ExecProcessor = CpuIndex;
 
 	DEBUG((EFI_D_INFO,
 		"%ld LaunchPeVM - Initiating PE/VM run number: %d\n",
@@ -225,10 +226,11 @@ void LaunchPeVm(UINT32 PeType, UINT32 CpuIndex)
 		PeVmData[PeType].UserModule.RunCount));
 
 	DEBUG((EFI_D_INFO,
-		"%ld LaunchPeVM - SharedPageStm 0x%016llx  0x%016llx\n",
+		"%ld LaunchPeVM - SharedPageStm 0x%016llx  0x%016llx 0x%016llx\n",
 		CpuIndex,
-		*((UINT64 *)(PeVmData[PeType].SharedPageStm)),
-		*((UINT64 *)(PeVmData[PeType].SharedPageStm + sizeof(UINT64)))));
+		SharedPageStmHeader->NumProcessors,
+		SharedPageStmHeader->RunCount,
+		SharedPageStmHeader->ExecProcessor));
 
 	// Make sure we take the correct path upon RSM
 	mHostContextCommon.HostContextPerCpu[CpuIndex].GuestVmType = PeType;
