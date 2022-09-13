@@ -1161,6 +1161,16 @@ VmcsInit (
     CpuDeadLoop ();
   }
 
+  /* clear possible cache residue from previous incarnation of STM */
+  Rflags = AsmVmClear ((VOID *)(UINTN) &mGuestContextCommonSmi.GuestContextPerCpu[Index].Vmcs);
+  if ((Rflags & (RFLAGS_CF | RFLAGS_ZF)) != 0) {
+    DEBUG ((EFI_D_ERROR, "%d : Warning AsmVmClear - %016lx : %08x\n", (UINTN)Index,
+	(VOID *)(UINTN)mGuestContextCommonSmi.GuestContextPerCpu[Index].Vmcs,
+	Rflags));
+  }
+
+  AsmVmClear((VOID *) (UINTN) &mGuestContextCommonSmm[SMI_HANDLER].GuestContextPerCpu[Index].Vmcs);
+
   CopyMem (
     (VOID *)(UINTN)mGuestContextCommonSmi.GuestContextPerCpu[Index].Vmcs,
     (VOID *)(UINTN)CurrentVmcs,
