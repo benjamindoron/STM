@@ -19,6 +19,9 @@
 
 extern PE_VM_DATA PeVmData[4];
 extern VOID EptDumpPageTable (IN EPT_POINTER *EptPointer );
+extern PE_SMI_CONTROL PeSmiControl;
+extern void SetSwSmiTimerRate(UINT16 value);
+extern void StartSwSmiTimer(void);
 
 /**
 
@@ -873,8 +876,9 @@ SmiVmcallRunPeVmHandler (
   STM_STATUS                    Status;
   PE_MODULE_INFO		LocalBuffer;
 
+  // BUG - need to make sure the VM/PE exists
+
   UINT32 PeType = PE_PERM;
-  // ECX:EBX - STM_VMCS_DATABASE_REQUEST
   AcquireSpinLock (&mHostContextCommon.SmiVmcallLock);
   DEBUG ((EFI_D_INFO, " %ld STM_API_RUN_PERM_VM:\n", Index));
 
@@ -892,8 +896,23 @@ SmiVmcallRunPeVmHandler (
   ReleaseSpinLock (&mHostContextCommon.SmiVmcallLock);
   // provide the root state for the measurement VM
   //GetRootVmxState(StmVmm, (ROOT_VMX_STATE *) ptData[CR3index].ShareModuleStm);
-  PeVmData[PeType].StartMode = PEVM_START_VMCALL;
-  RunPermVM(Index);
+
+  if(Index == PeSmiControl.PeCpuIndex) // are we on the VM/PE processor, then start
+  {
+	DEBUG((EFI_D_INFO, "%ld VM/PE Manual Start - same processor\n", Index));
+	PeVmData[PeType].StartMode = PEVM_START_VMCALL;
+	RunPermVM(Index);
+  }
+  else
+  {
+	DEBUG((EFI_D_INFO, "%ld VM/PE Manual Start - sending to VM/PE processor: %ld\n",
+		Index, PeSmiControl.PeCpuIndex));
+	InterlockedCompareExchange32(&PeSmiControl.PeWaitTimer, 0, 1);
+	PeVmData[PeType].StartMode = PEVM_PRESTART_SMI;
+	SetSwSmiTimerRate(0); // 1.5ms
+	StartSwSmiTimer();
+	AsmWbinvd();
+  }
   
   Status = STM_SUCCESS;
   return Status;
