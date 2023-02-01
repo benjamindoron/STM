@@ -24,7 +24,7 @@ extern int CheckAndGetState(UINT32 CpuIndex);
 extern void CpuReadySync(UINT32 Index);
 extern PE_VM_DATA PeVmData[4];   // right now support a max of 3 PE VM (VM 0 is the SMI_HANDLER)
 extern int CheckTimerSTS(UINT32 Index);
-extern void StopSwTimer(void);
+extern void StopPeriodicTimer(void);
 extern void SetEndOfSmi(void);
 extern void PrintVmxState(UINT32 CpuIndex, ROOT_VMX_STATE * RootState);
 
@@ -130,7 +130,7 @@ UINT32 PeSmiHandler(UINT32 CpuIndex)
 			if (PeSmiControl.PeCpuIndex == (INT32)CpuIndex)
 			{
 				InterlockedCompareExchange32(&PeSmiControl.PeWaitTimer, 1, 0);
-                                StopSwTimer();
+                                StopPeriodicTimer();
 
                                 // start the VM/PE
                                 PeVmData[PeType].StartMode = PEVM_PRESTART_SMI; // starting from SMI

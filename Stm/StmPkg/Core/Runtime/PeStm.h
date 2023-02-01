@@ -43,18 +43,21 @@ typedef struct
 	UINT64 AddressSpaceStart;	// start of guest physical address space (page aligned)
 	UINT32 AddressSpaceSize;	// size of guest physical address space
 	UINT32 VmConfig;			// Options to the configuration of the PE/VM
-	UINT64 Cr3Load;             // CR3
-	UINT64 SharedPage;			// writeable pages for sharing between the PE Module and kernel space
-								// can be multible pages and is located in mail memory
+	UINT64 Cr3Load;         // CR3
+	UINT64 SharedPage;	// writeable pages for sharing between the PE Module and kernel space
+				// can be multible pages and is located in mail memory
 	PE_REGION_LIST *Segment;    // list of read only regions (contained within a page)	
    	UINT32 SharedPageSize;		// size of]SharedPage/region
     UINT32 DoNotClearSize;      // area at beginning of memory not to be cleared
     UINT64 ModuleDataSection;   // Location of Module Data Section for VM/PE
+    UINT32 Processor;           // assigned processor (0 = use current processor)
+    UINT32 reserved;
 
     // data areas local to the STM go after this point
 
     UINT64 SharedStmPage;       // page shared between PE/VM and the STM
     UINT64 RunCount;            // count of runs starting with one (1)
+    UINT64 LastRunStatus;       // Status of last VM/PE run
    // UINTN DataRegionStart;     // data space after text region
     UINTN DataRegionSize;      // data space size
     UINTN FrontDataRegionSize; // data space size before text region

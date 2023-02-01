@@ -34,16 +34,16 @@ extern UINT32 GetMPState;
 static int CpuGetState = 0;
 
 void SetEndOfSmi(void);
-void StartTimer(void);
+void StartPeriodicTimer(void);
 void StopTimer(void);
 void ClearTimerSTS(void);
 void SetMaxSwTimerInt(void);
 void SetMinSwTimerInt(void);
-void SetTimerRate(UINT16 value);
+void SetPeriodicTimerRate(UINT16 value);
 
 extern void MapVmcs();
 void LaunchPeVm(UINT32 PeType, UINT32 CpuIndex);
-void AckTimer(void);
+void AckPeriodicTimer(void);
 UINT16 get_pmbase(void);
 
 UINT32 save_Inter_PeVm(UINT32 CpuIndex);
@@ -130,7 +130,7 @@ void LaunchPeVm(UINT32 PeType, UINT32 CpuIndex)
 		if(0 >= EndSize)
 		{
 			DEBUG((EFI_D_ERROR,
-				"%ld LaunchPeVM - VM/PE heap space not cleared because of DoNotClearSize too large\n",
+				"%ld LaunchPeVm - VM/PE heap space not cleared because of DoNotClearSize too large\n",
 				CpuIndex));
 		}
 		else
@@ -171,7 +171,7 @@ void LaunchPeVm(UINT32 PeType, UINT32 CpuIndex)
 		// save the state, process the SMI, then start the VM/PE afterwards
 
 		DEBUG((EFI_D_INFO,
-			"%ld LaunchPeVM - SMI being processed - faking NMI - PeSmiState: %ld\n",
+			"%ld LaunchPeVm - SMI being processed - faking NMI - PeSmiState: %ld\n",
 			CpuIndex,
 			PeSmiControl.PeSmiState));
 	}
@@ -219,14 +219,15 @@ void LaunchPeVm(UINT32 PeType, UINT32 CpuIndex)
 	SHARED_PAGE_STM_HEADER * SharedPageStmHeader = (SHARED_PAGE_STM_HEADER *) (UINT64*) PeVmData[PeType].SharedPageStm;
 	SharedPageStmHeader->RunCount = PeVmData[PeType].UserModule.RunCount;
 	SharedPageStmHeader->ExecProcessor = CpuIndex;
+	SharedPageStmHeader->NumProcessors = mHostContextCommon.CpuNum;
 
 	DEBUG((EFI_D_INFO,
-		"%ld LaunchPeVM - Initiating PE/VM run number: %d\n",
+		"%ld LaunchPeVm - Initiating PE/VM run number: %d\n",
 		CpuIndex,
 		PeVmData[PeType].UserModule.RunCount));
 
 	DEBUG((EFI_D_INFO,
-		"%ld LaunchPeVM - SharedPageStm 0x%016llx  0x%016llx 0x%016llx\n",
+		"%ld LaunchPeVm - SharedPageStm NumProcessors: %d  RunCount: %d ExecProc: %d\n",
 		CpuIndex,
 		SharedPageStmHeader->NumProcessors,
 		SharedPageStmHeader->RunCount,
@@ -264,11 +265,11 @@ void LaunchPeVm(UINT32 PeType, UINT32 CpuIndex)
 		// which will cause the SMI for this processor to be fired
 
 		DEBUG((EFI_D_INFO,
-			"%ld LaunchPeVM - SMI detected during build - delaying launch to handle SMI\n",
+			"%ld LaunchPeVm - SMI detected during build - delaying launch to handle SMI\n",
 			CpuIndex));
 		save_Inter_PeVm(CpuIndex);
 		DEBUG((EFI_D_ERROR,
-			"%ld LaunchPeVM - Warning: Return from non-returnable function\n",
+			"%ld LaunchPeVm - Warning: Return from non-returnable function\n",
 			CpuIndex));
 	}
 
@@ -277,7 +278,7 @@ void LaunchPeVm(UINT32 PeType, UINT32 CpuIndex)
 	if(NMIReceived > 1)
 	{
 		DEBUG((EFI_D_INFO,
-			"%ld LaunchPeVM - NMI detected during build - delaying launch to handle SMI\n",
+			"%ld LaunchPeVm - NMI detected during build - delaying launch to handle SMI\n",
 			CpuIndex));
 		
 		// This will cause the current PE/VM state to be saved and fake a return to the MLE
@@ -286,13 +287,13 @@ void LaunchPeVm(UINT32 PeType, UINT32 CpuIndex)
 
 		save_Inter_PeVm(CpuIndex);
 		DEBUG((EFI_D_ERROR,
-			"%ld LaunchPeVM - Warning: Return from non-returnable function\n",
+			"%ld LaunchPeVm - Warning: Return from non-returnable function\n",
 			CpuIndex));
 		// this function should not return
 	}
 
 	DEBUG((EFI_D_INFO,
-		"%ld LaunchPeVM - Launching PE/VM - NMIReceived: %d\n",
+		"%ld LaunchPeVm - Launching PE/VM - NMIReceived: %d\n",
 		CpuIndex,
 		NMIReceived));
 
@@ -302,7 +303,7 @@ void LaunchPeVm(UINT32 PeType, UINT32 CpuIndex)
 		"%ld LaunchPeVm - !!!LaunchGuestSmm fail for PeVm!!!\n",
 		CpuIndex));
 	DEBUG ((EFI_D_ERROR,
-		"%ld LaunchPeVm - Rflags: (UINTN)CpuIndex, %08llx\n",
+		"%ld LaunchPeVm - Rflags: %08llx\n",
 		CpuIndex,
 		Rflags));
 	DEBUG ((EFI_D_ERROR, "%ld LaunchPeVm - VMCS_32_RO_VM_INSTRUCTION_ERROR: %08x\n",
@@ -340,6 +341,7 @@ STM_STATUS RunPermVM(UINT32 CpuIndex)
 {
 	UINT32 rc;
 	UINT32 PeType = PE_PERM;   // can only restart perm vms...
+	UINT32 SetupMode = RESTART_VM;
 
 	// (for now) start the VM...
 
@@ -371,6 +373,8 @@ STM_STATUS RunPermVM(UINT32 CpuIndex)
 		}
 		return rc;
 	}
+	else if(PeVmData[PeType].PeVmState == PE_VM_WAIT_START)
+		SetupMode = NEW_VM;
 
 	PeVmData[PeType].PeVmState = PE_VM_ACTIVE;
 
@@ -387,7 +391,7 @@ STM_STATUS RunPermVM(UINT32 CpuIndex)
 
 	rc =  SetupProtExecVm(CpuIndex,
 				PeVmData[PE_PERM].UserModule.VmConfig,
-				RESTART_VM,
+				SetupMode,
 				PeType); // can only restart PERM_VM
 
 	if(rc != PE_SUCCESS)   // did we have a problem
@@ -400,6 +404,8 @@ STM_STATUS RunPermVM(UINT32 CpuIndex)
 	}
 
 	LaunchPeVm(PeType, CpuIndex);  // Launch the PE/VM
+
+	DEBUG((EFI_D_ERROR, "%ld - Error in launching PE VM\n", CpuIndex));
 
 	PeVmData[PE_PERM].PeVmState = PE_VM_AVAIL;  //  not there anymore
 	mHostContextCommon.HostContextPerCpu[CpuIndex].GuestVmType = SMI_HANDLER;
@@ -526,10 +532,10 @@ UINT32  PostPeVmProc(UINT32 rc, UINT32 CpuIndex, UINT32 mode)
 
 				// turn on the timer
 
-				SetTimerRate(PeriodicSmi16Sec);
-				StartTimer();
+				SetPeriodicTimerRate(PeriodicSmi16Sec);
+				StartPeriodicTimer();
 
-				AckTimer();
+				AckPeriodicTimer();
 			}
 		}
 	}

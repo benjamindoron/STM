@@ -15,7 +15,7 @@ WITHOUT WARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.
 #include "StmRuntime.h"
 #include "PeStm.h"
 
-void SetTimerRate(UINT16 value);
+void SetPeriodicTimerRate(UINT16 value);
 
 // interval timer support
 
@@ -132,21 +132,31 @@ UINT16 get_pmbase(void)
 	return pmbase;
 } 
 
-void StartTimer(void)
+void StartTimer(UINT32 enable, UINT32 status)
 {
 	UINT16 pmbase = get_pmbase();
 	UINT32 smi_en = IoRead32(pmbase + SMI_EN);
 	UINT32 smi_sts = IoRead32(pmbase + SMI_STS);
 
-	smi_en |= PERIODIC_EN;
 #if 0
 	DEBUG((EFI_D_INFO,
 		"StartTimer - smi_en: 0x%08lx smi_sts: 0x%08lx\n",
 		smi_en,
 		smi_sts));
 #endif
-	IoWrite32(pmbase + SMI_STS, PERIODIC_STS);
+	smi_en |= enable;
+	IoWrite32(pmbase + SMI_STS, status);
 	IoWrite32(pmbase + SMI_EN, smi_en);
+}
+
+void StartPeriodicTimer(void)
+{
+	StartTimer(PERIODIC_EN, PERIODIC_STS);
+}
+
+void StartSwSmiTimer(void)
+{
+	StartTimer(SWSMI_TMR_EN, SWSMI_TMR_STS);
 }
 
 void SetEndOfSmi(void)
@@ -180,7 +190,7 @@ void PrintSmiEnRegister(UINT32 Index)
 		IoRead32(pmbase + SMI_STS)));
 }
 
-void AckTimer(void)
+void AckPeriodicTimer(void)
 {
 	UINT16 pmbase = get_pmbase();
 	
@@ -193,13 +203,23 @@ void AckTimer(void)
 #endif
 }
 
-void StopSwTimer(void)
+void StopTimer(UINT32 enable)
 {
 	UINT16 pmbase = get_pmbase();
 	UINT32 smi_en = IoRead32(pmbase + SMI_EN);
 
-	smi_en &= ~PERIODIC_EN;
+	smi_en &= ~enable;
 	IoWrite32(pmbase + SMI_EN, smi_en);
+}
+
+void StopPeriodicTimer(void)
+{
+	StopTimer(PERIODIC_EN);
+}
+
+void StopSwSmiTimer(void)
+{
+	StopTimer(SWSMI_TMR_EN);
 }
 
 /*
@@ -217,18 +237,23 @@ int CheckTimerSTS(UINT32 Index)
 {
 	UINT16 pmbase = get_pmbase();
 	UINT32 smi_sts = IoRead32(pmbase + SMI_STS);
+        UINT32 smi_en = IoRead32(pmbase + SMI_EN);
+
+	// only care about the ones that are enabled
+
+	smi_sts = smi_en & smi_sts;
+
 #if 0
 	DEBUG((EFI_D_ERROR, "%ld CheckTimerSTS - 0x%08lx\n", Index, smi_sts));
 #endif
 	if((smi_sts & PERIODIC_STS) == PERIODIC_STS)
 	{
-		UINT32 smi_en = IoRead32(pmbase + SMI_EN);
-		UINT32 other_smi = (smi_en & smi_sts) & ~PERIODIC_STS;
+		UINT32 other_smi = smi_sts & ~PERIODIC_STS;
 
-		if(other_smi == 0)
-		{ 
+	        if(other_smi == 0)
+		{
 			DEBUG((EFI_D_INFO,
-				"%ld CheckTimerSTS - Timer Interrupt Detected\n",
+				"%ld CheckTimerSTS - Periodic Timer SMI\n",
 				Index,
 				smi_sts));
 			return 1;
@@ -236,14 +261,36 @@ int CheckTimerSTS(UINT32 Index)
 		else
 		{
 			DEBUG((EFI_D_INFO,
-				"%ld CheckTimerSTS - Timer + other SMI found\n",
+				"%ld CheckTimerSTS - Periodic Timer + other SMI\n",
 				Index,
 				smi_sts));
 			return 2;
 		}
 	}
 	else
+	if((smi_sts & SWSMI_TMR_STS) == SWSMI_TMR_STS)
 	{
+                UINT32 other_smi = smi_sts & ~SWSMI_TMR_STS;
+                StopSwSmiTimer();
+
+                if(other_smi == 0)
+                {
+                        DEBUG((EFI_D_INFO,
+                                "%ld CheckTimerSTS - SWSMI\n",
+                                Index,
+                                smi_sts));
+                        return 1;
+                }
+                else
+                {
+                        DEBUG((EFI_D_INFO,
+                                "%ld CheckTimerSTS - SWSMI + other SMI found\n",
+                                Index,
+                                smi_sts));
+                        return 2;
+                }
+	}
+
 #if 0
 		DEBUG((EFI_D_INFO,
 			"%ld CheckTimerSTS - No Timer Interrupt Detected\n",
@@ -251,10 +298,9 @@ int CheckTimerSTS(UINT32 Index)
 			smi_sts));
 #endif
 		return 0;
-	}
 }
 
-void ClearTimerSTS()
+void ClearPeriodicTimerSTS()
 {
 	UINT16 pmbase = get_pmbase();
 	
@@ -262,17 +308,17 @@ void ClearTimerSTS()
 	IoWrite32(pmbase + SMI_STS, PERIODIC_STS);
 }
 
-void SetMaxSwTimerInt()
+void SetMaxPeriodicTimerInt()
 {
-	SetTimerRate(3);
+	SetPeriodicTimerRate(3);
 }
 
-void SetMinSwTimerInt()
+void SetMinPeriodicTimerInt()
 {
-	SetTimerRate(0);
+	SetPeriodicTimerRate(0);
 }
 
-void SetTimerRate(UINT16 value)
+void SetPeriodicTimerRate(UINT16 value)
 {
 	UINT16 Reg16;
 	UINT16 TimeOut;
@@ -286,4 +332,20 @@ void SetTimerRate(UINT16 value)
 
 	Reg16 = pcie_read_config16(PcuDev, D31F0_GEN_PMCON_1);
 	pcie_write_config16(PcuDev, D31F0_GEN_PMCON_1, Reg16|TimeOut);
+}
+
+void SetSwSmiTimerRate(UINT16 value)
+{
+        UINT16 Reg16;
+        UINT16 TimeOut;
+        device_t PcuDev = get_pcu_dev();
+
+        if( value > 3)
+        {
+                value = 3;
+        }
+        TimeOut = (value << 6);
+
+        Reg16 = pcie_read_config16(PcuDev, D31F0_GEN_PMCON_3);
+        pcie_write_config16(PcuDev, D31F0_GEN_PMCON_3, Reg16|TimeOut);
 }

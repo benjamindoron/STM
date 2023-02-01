@@ -10,6 +10,8 @@ extern void print_region_list(UINT32 PeType, UINT32 CpuIndex);
 extern UINT32 SetupProtExecVm(UINT32 CpuIndex, UINT32 VM_Configuration, UINT32 mode, UINT32 PeType);
 extern void LaunchPeVm(UINT32 PeType, UINT32 CpuIndex);
 extern VOID EptDumpPageTable (IN EPT_POINTER *EptPointer );
+extern void SetSwSmiTimerRate(UINT16 value);
+extern void StartSwSmiTimer(void);
 static UINT32 setupModulepages(UINT32 PeType, UINT32 CpuIndex);
 
 STM_STATUS AddPeVm(UINT32 CpuIndex, PE_MODULE_INFO * callerDataStructure, UINT32 PeType, UINT32 RunVm)
@@ -77,6 +79,13 @@ STM_STATUS AddPeVm(UINT32 CpuIndex, PE_MODULE_INFO * callerDataStructure, UINT32
 	PeVmData[PeType].UserModule.ModuleDataSection = callerDataStructure->ModuleDataSection;
 	PeVmData[PeType].UserModule.DoNotClearSize = callerDataStructure->DoNotClearSize;
 	PeVmData[PeType].UserModule.RunCount = 0;
+
+	if(callerDataStructure->Processor < mHostContextCommon.CpuNum)
+		PeVmData[PeType].UserModule.Processor = callerDataStructure->Processor;
+	else
+		PeVmData[PeType].UserModule.Processor = 0;
+
+	PeVmData[PeType].UserModule.LastRunStatus = 0;
 
 #if defined (MDE_CPU_X64)
 	sourceBuffer = (UINTN *)((PeVmData[PeType].UserModule.ModuleAddress));
@@ -163,6 +172,17 @@ STM_STATUS AddPeVm(UINT32 CpuIndex, PE_MODULE_INFO * callerDataStructure, UINT32
 		// calculate the location within the allocated space to place the module
 		destBuffer = PeVmData[PeType].SmmBuffer + PeVmData[PeType].UserModule.AddressSpaceStart - 
 			PeVmData[PeType].UserModule.ModuleLoadAddress;
+
+		// sanity check - make sure the module lands in the allocated buffer
+
+		if( (destBuffer < PeVmData[PeType].SmmBuffer) ||
+		    (destBuffer + PeVmData[PeType].UserModule.ModuleSize >
+			 PeVmData[PeType].SmmBuffer + (numModulePages << 12)))
+		{
+			FreePE_DataStructures(PeType);
+			PeVmData[PeType].PeVmState = PE_VM_AVAIL;
+			return(PE_MODULE_TOO_LARGE);
+		}
 	}
 
 	// make sure that the size of the module will fit into the allocated space
@@ -390,36 +410,55 @@ STM_STATUS AddPeVm(UINT32 CpuIndex, PE_MODULE_INFO * callerDataStructure, UINT32
 	// (for now) start the VM...
 	PeVmData[PeType].StartMode = PEVM_START_VMCALL;
 
-	rc =  SetupProtExecVm(CpuIndex, PeVmData[PeType].UserModule.VmConfig, NEW_VM, PeType);
-
-	if(rc != PE_SUCCESS)   // did we have a problem
-	{
-		DEBUG((EFI_D_ERROR, "%ld AddPeVm - Error in configuring PE VM\n", CpuIndex));
-		FreePE_DataStructures(PeType);
-		//setPEerrorCode(rc, StmVmm);    // tell the caller of the problem
-		PeVmData[PeType].PeVmState = PE_VM_AVAIL;  //  not there anymore
-		// StmVmm->NonSmiHandler = 0;     // no longer an PE VM
-		AsmVmPtrLoad(&mGuestContextCommonSmi.GuestContextPerCpu[CpuIndex].Vmcs);
-
-		/// at this point we should return to the MLE as per the Intel method...
-
-		AsmVmClear(&mGuestContextCommonSmm[PeType].GuestContextPerCpu[0].Vmcs);
-		mHostContextCommon.HostContextPerCpu[CpuIndex].GuestVmType = SMI_HANDLER;
-		return(rc);
-	}
-	DEBUG((EFI_D_ERROR, "%ld AddPeVm - sucessfully completed - PeApicId: 0x%llx PeType: %d\n", CpuIndex, PeSmiControl.PeApicId, PeType));
+	DEBUG((EFI_D_ERROR, "%ld AddPeVm - sucessfully completed - PeApicId: 0x%llx PeType: %d\n",
+			CpuIndex, PeSmiControl.PeApicId, PeType));
 
 	if(RunVm == 1)
 	{
-		PeVmData[PeType].StartMode = PEVM_START_VMCALL;
-		LaunchPeVm(PeType, CpuIndex);  // launch the PE/VM
+		if((PeVmData[PeType].UserModule.Processor == 0) ||
+			(PeVmData[PeType].UserModule.Processor == CpuIndex))
+		{
+			//Execution is only on this processor
+			rc =  SetupProtExecVm(CpuIndex, PeVmData[PeType].UserModule.VmConfig, NEW_VM, PeType);
 
-		// if we get to this point the PeVm has failed to launch so we need clean up the mess 
-		// and return the error to the caller
-		FreePE_DataStructures(PeType);
-		DEBUG((EFI_D_ERROR, "%ld AddPeVm - VM/PE Launch Failure\n", CpuIndex));
-		rc = PE_VMLAUNCH_ERROR;
-		PeVmData[PeType].PeVmState = PE_VM_AVAIL;  //  not there anymore
+			if(rc != PE_SUCCESS)   // did we have a problem
+			{
+				DEBUG((EFI_D_ERROR, "%ld AddPeVm - Error in configuring PE VM\n", CpuIndex));
+				FreePE_DataStructures(PeType);
+				PeVmData[PeType].PeVmState = PE_VM_AVAIL;  //  not there anymore
+				AsmVmPtrLoad(&mGuestContextCommonSmi.GuestContextPerCpu[CpuIndex].Vmcs);
+				AsmVmClear(&mGuestContextCommonSmm[PeType].GuestContextPerCpu[0].Vmcs);
+				mHostContextCommon.HostContextPerCpu[CpuIndex].GuestVmType = SMI_HANDLER;
+				return(rc);
+			}
+			PeVmData[PeType].StartMode = PEVM_START_VMCALL;
+			LaunchPeVm(PeType, CpuIndex);  // launch the PE/VM
+
+			// if we get to this point the PeVm has failed to launch so
+			// we need to clean up and return the error to the caller
+			FreePE_DataStructures(PeType);
+			DEBUG((EFI_D_ERROR, "%ld AddPeVm - VM/PE Launch Failure\n", CpuIndex));
+			rc = PE_VMLAUNCH_ERROR;
+			PeVmData[PeType].PeVmState = PE_VM_AVAIL;  //  not there anymore
+		}
+		else
+		{
+			// execution will not be on this processor, setup to get it
+			// to where it belongs
+
+			DEBUG((EFI_D_ERROR, "%ld AddPeVM - Execution is to be on processor %ld\n",
+				CpuIndex, PeVmData[PeType].UserModule.Processor));
+
+			PeSmiControl.PeCpuIndex = PeVmData[PeType].UserModule.Processor;
+			mHostContextCommon.HostContextPerCpu[PeSmiControl.PeCpuIndex].NonSmiHandler = PeType;
+			InterlockedCompareExchange32(&PeSmiControl.PeWaitTimer, 0, 1);
+			PeVmData[PeType].PeVmState = PE_VM_WAIT_START;
+			PeVmData[PeType].StartMode = PEVM_PRESTART_SMI;
+			SetSwSmiTimerRate(0); // 1.5ms
+			StartSwSmiTimer();
+			AsmWbinvd();
+			rc = STM_SUCCESS;
+		}
 	}
 	else
 	{
