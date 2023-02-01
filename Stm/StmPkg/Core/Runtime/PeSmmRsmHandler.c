@@ -41,7 +41,7 @@ VOID
 		pCpuIndex = CpuIndex;
 
 	AsmVmPtrStore (&mGuestContextCommonSmm[VmType].GuestContextPerCpu[pCpuIndex].Vmcs);
-	Rflags = AsmVmPtrLoad (&mGuestContextCommonSmi.GuestContextPerCpu[pCpuIndex].Vmcs);
+	Rflags = AsmVmPtrLoad (&mGuestContextCommonSmi.GuestContextPerCpu[CpuIndex].Vmcs);
 	if ((Rflags & (RFLAGS_CF | RFLAGS_ZF)) != 0) {
 		DEBUG ((EFI_D_ERROR,
 			"%ld PeRsmHandler - ERROR: AsmVmPtrLoad %016lx : %08x\n",
