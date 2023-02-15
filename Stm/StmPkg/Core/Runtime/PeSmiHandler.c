@@ -93,6 +93,7 @@ UINT32 PeSmiHandler(UINT32 CpuIndex)
 
 			if(InterlockedCompareExchange32(&PeSmiControl.PeWaitTimer, 1, 1) == 1)
 			{
+				// Check and clear the timer status
 				TimerSTS = CheckTimerSTS(CpuIndex);
 
 				if (TimerSTS == 2)
@@ -158,6 +159,7 @@ UINT32 PeSmiHandler(UINT32 CpuIndex)
 
                                 RunPermVM(CpuIndex);
 			}
+			retvalue = 1; // no smi for the smihandler to process
 
 			// we do  not reset the state here as the VM/PE will be processing
 			// when it competes it should end with a PeSmiState pf PESMIPNMI (waiting for NMI)
