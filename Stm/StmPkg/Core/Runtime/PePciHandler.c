@@ -222,8 +222,24 @@ void StopSwSmiTimer(void)
 	StopTimer(SWSMI_TMR_EN);
 }
 
+void ClearPeriodicTimerSTS()
+{
+        UINT16 pmbase = get_pmbase();
+
+        // just want to clear the  status - do not touch the rest
+        IoWrite32(pmbase + SMI_STS, PERIODIC_STS);
+}
+
+void ClearSwSmiTimerSTS()
+{
+        UINT16 pmbase = get_pmbase();
+
+        // just want to clear the  status - do not touch the rest
+        IoWrite32(pmbase + SMI_STS, SWSMI_TMR_STS);
+}
+
 /*
- *  CheckTimerSTS
+ *  CheckTimerSTS - check and clear timer status
  *   Input:
  *     Index - cpu number
  *
@@ -249,6 +265,7 @@ int CheckTimerSTS(UINT32 Index)
 	if((smi_sts & PERIODIC_STS) == PERIODIC_STS)
 	{
 		UINT32 other_smi = smi_sts & ~PERIODIC_STS;
+		ClearPeriodicTimerSTS();
 
 	        if(other_smi == 0)
 		{
@@ -271,6 +288,7 @@ int CheckTimerSTS(UINT32 Index)
 	if((smi_sts & SWSMI_TMR_STS) == SWSMI_TMR_STS)
 	{
                 UINT32 other_smi = smi_sts & ~SWSMI_TMR_STS;
+		ClearSwSmiTimerSTS();
                 StopSwSmiTimer();
 
                 if(other_smi == 0)
@@ -298,14 +316,6 @@ int CheckTimerSTS(UINT32 Index)
 			smi_sts));
 #endif
 		return 0;
-}
-
-void ClearPeriodicTimerSTS()
-{
-	UINT16 pmbase = get_pmbase();
-	
-	// just want to clear the  status - do not touch the rest
-	IoWrite32(pmbase + SMI_STS, PERIODIC_STS);
 }
 
 void SetMaxPeriodicTimerInt()
