@@ -579,7 +579,13 @@ UINT32  PostPeVmProc(UINT32 rc, UINT32 CpuIndex, UINT32 mode)
 		} else {
 			mGuestContextCommonSmi.GuestContextPerCpu[CpuIndex].Launched = TRUE;
 			Rflags = AsmVmLaunch (&mGuestContextCommonSmi.GuestContextPerCpu[CpuIndex].Register);
-			DEBUG ((EFI_D_ERROR, "PostPeVmProc - somehow we did not launch\n"));
+			if (VmRead32 (VMCS_32_RO_VM_INSTRUCTION_ERROR_INDEX) ==
+                                VmxFailErrorVmLaunchWithNonClearVmcs) {
+                                    DEBUG ((EFI_D_ERROR, "%ld :-(\n", (UINTN)CpuIndex));
+                                Rflags = AsmVmResume (&mGuestContextCommonSmi.GuestContextPerCpu[CpuIndex].Register);
+                        }
+			DEBUG ((EFI_D_ERROR, "%ld PostPeVmProc - launch failed VM inst error: %ld\n",
+				 CpuIndex, VmRead32 (VMCS_32_RO_VM_INSTRUCTION_ERROR_INDEX)));
 			mGuestContextCommonSmi.GuestContextPerCpu[CpuIndex].Launched = FALSE;
 		}
 		DEBUG ((EFI_D_ERROR, "%ld PostPeVmProc - Problem in SMI during VM/PE\n", CpuIndex));
