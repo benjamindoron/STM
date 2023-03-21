@@ -385,9 +385,10 @@ EptAllocatePte(
     {
         L3PageTable = (EPT_ENTRY *)(UINTN)AllocatePages (1);
         if(L3PageTable == NULL)
-		{
+	{
+	    DEBUG(( EFI_D_INFO, "EptAllocatePte(1)  - Allocatiopn failure \n"));
             return 0;
-		}
+	}
         ZeroMem (L3PageTable, STM_PAGES_TO_SIZE(1));
         L4PageTable[Index4].Uint64 = (UINT64)(UINTN)L3PageTable;
         L4PageTable[Index4].Bits32.Ra    = 1;
@@ -414,9 +415,10 @@ EptAllocatePte(
         {
             L2PageTable = (EPT_ENTRY *)(UINTN)AllocatePages (1);
             if(L2PageTable == NULL)
-			{
+	    {
+                DEBUG(( EFI_D_INFO, "EptAllocatePte(2)  - Allocatiopn failure \n"));
                 return 0;
-			}
+	    }
             ZeroMem (L2PageTable, STM_PAGES_TO_SIZE(1));
             L3PageTable[Index3].Uint64 = (UINT64)(UINTN)L2PageTable;
             L3PageTable[Index3].Bits32.Ra = 1;
@@ -455,9 +457,10 @@ EptAllocatePte(
                 //
                 L1PageTable = (EPT_ENTRY *)AllocatePages (1);
                 if(L1PageTable == NULL)
-				{
-                    return 0;
-				}
+		{
+	                DEBUG(( EFI_D_INFO, "EptAllocatePte(3)  - Allocatiopn failure \n"));
+			return 0;
+		}
                 ZeroMem (L1PageTable, STM_PAGES_TO_SIZE(1));
                 L2PageTable[Index2].Uint64 = (UINT64)(UINTN)L1PageTable;
                 L2PageTable[Index2].Bits32.Ra    = 1;
