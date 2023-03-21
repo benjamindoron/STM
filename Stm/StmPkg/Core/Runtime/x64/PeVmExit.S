@@ -19,7 +19,7 @@ ASM_GLOBAL ASM_PFX(PeStmHandlerSmm)
 ASM_GLOBAL ASM_PFX(AsmHostEntrypointSmmPe)
 
 ASM_PFX(AsmHostEntrypointSmmPe):
-  sub  %rsp, 512
+  subq $0x200, %rsp
   fxsave (%rsp)
   push %r15
   push %r14
