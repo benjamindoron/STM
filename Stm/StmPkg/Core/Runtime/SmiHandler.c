@@ -110,6 +110,7 @@ VOID
 	)
 {
 	UINT32              Index;
+	UINT64		    vmcs;
 	UINTN               Rflags;
 	VM_EXIT_INFO_BASIC  InfoBasic;
 	X86_REGISTER        *Reg;
@@ -173,9 +174,13 @@ VOID
 
 	AcquireSpinLock (&mHostContextCommon.DebugLock);
 
+	AsmVmPtrStore(&vmcs);
 	DEBUG ((EFI_D_ERROR, "%ld StmHandlerSmi - !!!ResumeGuestSmi FAIL!!!\n", (UINTN)Index));
 	DEBUG ((EFI_D_ERROR, "%ld StmHandlerSmi - Rflags: 0x%08x\n", Index, Rflags));
-	DEBUG ((EFI_D_ERROR, "%ld StmHandlerSmi - VMCS_32_RO_VM_INSTRUCTION_ERROR: 0x%08x\n", Index, (UINTN)VmRead32 (VMCS_32_RO_VM_INSTRUCTION_ERROR_INDEX)));
+	DEBUG ((EFI_D_ERROR, "%ld StmHandlerSmi - VMCS: 0x%08x VMCS_32_RO_VM_INSTRUCTION_ERROR: 0x%08x\n",
+			Index,
+			vmcs,
+			(UINTN)VmRead32 (VMCS_32_RO_VM_INSTRUCTION_ERROR_INDEX)));
 	DumpVmcsAllField (Index);
 	DumpRegContext (&mGuestContextCommonSmi.GuestContextPerCpu[Index].Register, Index);
 	DumpGuestStack(Index);
