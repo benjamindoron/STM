@@ -30,7 +30,7 @@ SECTIONS
 	.GdtrBaseOffset    : {LONG(_StmGdtr)}
 	.CsSelector	   : {LONG(0x38)}
 	.EipOffset         : {LONG(_ModuleEntryPoint)}
-	.EspOffset         : {LONG(_StmPageTables + HeapSize + PageTableSize)}
+	.EspOffset         : {LONG(_StmPageTables + HeapSize + PageTableSize + 0xFF0)}
 	.Cr3Offset         : {LONG(_StmPageTables)}
 	.fill1 		   : { FILL(0x0); . = ALIGN(2048); } 
 	/* SOFTWARE_STM_HEADER */
