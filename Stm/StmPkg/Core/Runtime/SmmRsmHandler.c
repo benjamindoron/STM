@@ -125,7 +125,9 @@ VOID
 
 	Rflags = AsmVmPtrLoad (&mGuestContextCommonSmi.GuestContextPerCpu[Index].Vmcs);
 	if ((Rflags & (RFLAGS_CF | RFLAGS_ZF)) != 0) {
-		DEBUG ((EFI_D_ERROR, "%ld RsmHandler - ERROR: AsmVmPtrLoad - %016lx : %08x\n", (UINTN)Index, mGuestContextCommonSmi.GuestContextPerCpu[Index].Vmcs, Rflags));
+		DEBUG ((EFI_D_ERROR, "%ld RsmHandler - ERROR: AsmVmPtrLoad - %016lx : %08x\n",
+			(UINTN)Index, mGuestContextCommonSmi.GuestContextPerCpu[Index].Vmcs, Rflags));
+		DumpVmcsAllField (Index);
 		CpuDeadLoop ();
 	}
 

@@ -338,6 +338,7 @@ SplitPage (
       NewPageEntry = (EPT_ENTRY *)AllocatePages (1);
       //DEBUG ((EFI_D_INFO, "Split - 0x%x\n", NewPageEntry));
       if (NewPageEntry == NULL) {
+	DEBUG((EFI_D_ERROR, "%ld SplitPage(1) - AllocatePages returned NULL\n", Index));
         return RETURN_OUT_OF_RESOURCES;
       }
       BaseAddress = PageEntry->Uint64 & PAGING_2M_ADDRESS_MASK_64;
@@ -362,6 +363,7 @@ SplitPage (
       NewPageEntry = (EPT_ENTRY *)AllocatePages (1);
       DEBUG ((EFI_D_INFO, "Split - 0x%x\n", NewPageEntry));
       if (NewPageEntry == NULL) {
+        DEBUG((EFI_D_ERROR, "%ld SplitPage(2) - AllocatePages returned NULL\n", Index));
         return RETURN_OUT_OF_RESOURCES;
       }
       BaseAddress = PageEntry->Uint64 & PAGING_1G_ADDRESS_MASK_64;
