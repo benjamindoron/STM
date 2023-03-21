@@ -69,7 +69,16 @@ SmiEventHandler (
 
     if(PeSmiHandler(Index) == 1)
     {
-	AsmVmPtrLoad (&mGuestContextCommonSmi.GuestContextPerCpu[Index].Vmcs);
+#if 1
+	Rflags = AsmVmPtrLoad (&mGuestContextCommonSmi.GuestContextPerCpu[Index].Vmcs);
+	if ((Rflags & (RFLAGS_CF | RFLAGS_ZF)) != 0) {
+		DEBUG ((EFI_D_ERROR,
+			 "%ld ERROR: AsmVmPtrLoad - %016lx : %08x\n",
+			(UINTN)Index,
+			mGuestContextCommonSmm[SMI_HANDLER].GuestContextPerCpu[Index].Vmcs,
+			Rflags));
+	}
+#endif
         return;
     }
 #if 0
