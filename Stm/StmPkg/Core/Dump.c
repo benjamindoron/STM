@@ -454,6 +454,7 @@ DumpVmcsAllField (
   DumpVmcsReadOnlyField (CpuIndex);
   DumpVmcsGuestField (CpuIndex);
   DumpVmcsHostField (CpuIndex);
+  DumpVmxCapabillityMsr (CpuIndex);
   DumpGuestStack (CpuIndex);
 }
 
