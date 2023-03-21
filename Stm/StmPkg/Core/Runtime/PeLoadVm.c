@@ -374,7 +374,11 @@ STM_STATUS RunPermVM(UINT32 CpuIndex)
 		return rc;
 	}
 	else if(PeVmData[PeType].PeVmState == PE_VM_WAIT_START)
-		SetupMode = NEW_VM;
+		{
+			DEBUG((EFI_D_ERROR, "%ld RunPermVm - starting new VM\n", 
+				CpuIndex));
+			SetupMode = NEW_VM;
+		}
 
 	PeVmData[PeType].PeVmState = PE_VM_ACTIVE;
 
@@ -446,9 +450,10 @@ UINT32  PostPeVmProc(UINT32 rc, UINT32 CpuIndex, UINT32 mode)
 		StartPeTimeStamp,
 		EndTimeStamp));
 	DEBUG((EFI_D_INFO,
-		"%ld PostPeVmProc - PeType: %d mode: %d PE clocktime: %ld runtime(scaled): %ldms\n",
+		"%ld PostPeVmProc - PeType: %d rc: %d mode: %d PE clocktime: %ld runtime(scaled): %ldms\n",
 		CpuIndex,
 		PeType,
+		rc,
 		mode,
 		TotalPeTime,
 		TotalScaleTime));
