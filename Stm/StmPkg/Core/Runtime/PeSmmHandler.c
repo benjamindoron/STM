@@ -53,7 +53,14 @@ VOID
 
 	for(Index = SMI_HANDLER + 1; Index < NUM_PE_TYPE; Index++)
 	{
-		mGuestContextCommonSmm[Index].GuestContextPerCpu = AllocatePages (STM_SIZE_TO_PAGES(sizeof(STM_GUEST_CONTEXT_PER_CPU)) * mHostContextCommon.CpuNum);
+		mGuestContextCommonSmm[Index].GuestContextPerCpu =
+			AllocatePages (STM_SIZE_TO_PAGES(sizeof(STM_GUEST_CONTEXT_PER_CPU)));
+	}
+
+	if(mGuestContextCommonSmm[NUM_PE_TYPE - 1].GuestContextPerCpu == 0) // only need to check once
+	{
+		DEBUG((EFI_D_ERROR, "***ERROR*** Memory allocation failure for guest context\n"));
+		CpuDeadLoop();
 	}
 
 	DEBUG ((EFI_D_INFO, "PeInitStmHandlerSmm - initilizating PeSmmHandler Tables\n"));
