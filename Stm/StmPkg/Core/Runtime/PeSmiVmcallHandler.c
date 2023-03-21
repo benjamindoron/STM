@@ -60,7 +60,10 @@ STM_STATUS AddPeVm(UINT32 CpuIndex, PE_MODULE_INFO * callerDataStructure, UINT32
 
 	PeVmData[PeType].PeVmState = PE_VM_ACTIVE;    // indicate we are here
 
-	DEBUG((EFI_D_INFO, "%ld AddPeVm - callerDataStructure location: 0x%08lx 0x%08lx\n", CpuIndex,  (UINT64) (((UINT64)callerDataStructure) >> 32), (UINT64)(callerDataStructure)));
+	DEBUG((EFI_D_INFO, "%ld AddPeVm - callerDataStructure location: 0x%08lx 0x%08lx\n",
+		CpuIndex,
+		(UINT64) (((UINT64)callerDataStructure) >> 32),
+		(UINT64)(callerDataStructure)));
 
 	// pull information from the modules data structure
 
