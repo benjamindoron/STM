@@ -61,7 +61,7 @@ StmTeardown (
   X86_REGISTER      *Reg;
   UINT32            CurrentJoinedCpuNum;
 
-  DEBUG ((EFI_D_INFO, "StmTeardown - %d\n", (UINTN)Index));
+  DEBUG ((EFI_D_INFO, "%ld StmTeardown\n", (UINTN)Index));
 
   Reg = &mGuestContextCommonSmi.GuestContextPerCpu[Index].Register;
 
@@ -110,7 +110,7 @@ StmTeardown (
   Rflags = AsmVmResume (Reg);
   // BUGBUG: - AsmVmLaunch if AsmVmResume fail
   if (VmRead32 (VMCS_32_RO_VM_INSTRUCTION_ERROR_INDEX) == VmxFailErrorVmResumeWithNonLaunchedVmcs) {
-//    DEBUG ((EFI_D_ERROR, "(STM):-(\n", (UINTN)Index));
+  //   DEBUG ((EFI_D_ERROR, "%ld (STM):-(\n", (UINTN)Index));
     Rflags = AsmVmLaunch (Reg);
   }
 
