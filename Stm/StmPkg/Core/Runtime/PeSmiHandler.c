@@ -28,6 +28,8 @@ extern void StopPeriodicTimer(void);
 extern void SetEndOfSmi(void);
 extern void PrintVmxState(UINT32 CpuIndex, ROOT_VMX_STATE * RootState);
 
+extern STM_STATUS SmiVmcallStopHandler (IN UINT32 Index, IN UINT64 AddressParameter);
+
 static UINT32 HandleTimer = 0;
 static UINT32 HandleSmi = 0;
 
@@ -44,6 +46,15 @@ UINT32 PeSmiHandler(UINT32 CpuIndex)
 
 	InterlockedCompareExchange32(&PeSmiControl.PeSmiState, PESMINULL, PESMIHSMI);
 	//DEBUG((EFI_D_INFO, "%ld PeSmiHandler - CurrPeSmiState %ld\n", CpuIndex, PeSmiControl.PeSmiState));
+
+        if (mHostContextCommon.StmShutdown == 1)
+        {
+		// we shutdown any processor who comes here as it seems that the
+		// kernel got it wrong somehow - this has happened in testing...
+		DEBUG((EFI_D_INFO, "%ld PeSmiHandler - Shutting down STM from SMI\n", CpuIndex));
+		SmiVmcallStopHandler (CpuIndex, 0);
+		return 0;
+        }
 
 	if(PeSmiControl.PeCpuIndex == (INT32)CpuIndex )  // when the pe/vm comes in...
 	{
@@ -132,6 +143,11 @@ UINT32 PeSmiHandler(UINT32 CpuIndex)
 			{
 				InterlockedCompareExchange32(&PeSmiControl.PeWaitTimer, 1, 0);
                                 StopPeriodicTimer();
+				if (mHostContextCommon.StmShutdown == 1)
+				{
+					DEBUG((EFI_D_INFO, "%ld PeSmiHandler - Shutting down STM/PE\n")); 
+					SmiVmcallStopHandler (CpuIndex, 0);
+				}
 
                                 // start the VM/PE
                                 PeVmData[PeType].StartMode = PEVM_PRESTART_SMI; // starting from SMI

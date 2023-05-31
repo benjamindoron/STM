@@ -22,6 +22,7 @@ extern VOID EptDumpPageTable (IN EPT_POINTER *EptPointer );
 extern PE_SMI_CONTROL PeSmiControl;
 extern void SetSwSmiTimerRate(UINT16 value);
 extern void StartSwSmiTimer(void);
+extern UINT32 VMPE_Terminate(UINT32 CpuIndex);
 
 /**
 
@@ -126,12 +127,13 @@ SmiVmcallStopHandler (
   //
   // Launch SMM Teardown handler.
   //
-  DEBUG ((EFI_D_INFO, "STM_API_STOP:\n"));
+  DEBUG ((EFI_D_INFO, "%ld STM_API_STOP:\n", Index));
+  VMPE_Terminate(Index);
   SmmTeardown (Index);
   WriteUnaligned32 ((UINT32 *)&Reg->Rax, STM_SUCCESS);
   VmWriteN (VMCS_N_GUEST_RFLAGS_INDEX, VmReadN(VMCS_N_GUEST_RFLAGS_INDEX) & ~RFLAGS_CF);
   StmTeardown (Index);
-  DEBUG((EFI_D_INFO, "CpuDeadLoop\n"));
+  DEBUG((EFI_D_INFO, "%ld CpuDeadLoop\n", Index));
   CpuDeadLoop ();
 
   return STM_SUCCESS;
@@ -1021,7 +1023,7 @@ SmiVmcallHandler (
   STM_STATUS                         Status;
   STM_VMCALL_HANDLER                 StmVmcallHandler;
   UINT64                             AddressParameter;
-  //DEBUG((EFI_D_ERROR, "%ld SmiVmcallHandler - entereda\n", Index));
+  DEBUG((EFI_D_ERROR, "%ld SmiVmcallHandler - entereda\n", Index));
 
   Reg = &mGuestContextCommonSmi.GuestContextPerCpu[Index].Register;
   StmVmcallHandler = GetSmiVmcallHandlerByIndex (ReadUnaligned32 ((UINT32 *)&Reg->Rax));

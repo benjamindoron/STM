@@ -30,6 +30,7 @@ extern void AsmSendInt2();        // setup NMI
 extern void PeEptFree(IN UINT64 EptPointer);
 extern UINT32 GetVmcsOffset( UINT32 field_encoding);
 extern UINT32 GetMPState;
+extern void StopPeriodicTimer(void);
 
 static int CpuGetState = 0;
 
@@ -40,6 +41,7 @@ void ClearTimerSTS(void);
 void SetMaxSwTimerInt(void);
 void SetMinSwTimerInt(void);
 void SetPeriodicTimerRate(UINT16 value);
+UINT32 VMPE_Terminate(UINT32 CpuIndex);
 
 extern void MapVmcs();
 void LaunchPeVm(UINT32 PeType, UINT32 CpuIndex);
@@ -620,11 +622,7 @@ UINT32  PostPeVmProc(UINT32 rc, UINT32 CpuIndex, UINT32 mode)
 	// clear out the page table list
 	if(mode == RELEASE_VM)
 	{
-		FreePE_DataStructures(PeType);
-		// need to add code here in the instance a perm PE VM has crashed
-		// so that in production someone cannot take advantange of this case
-		PeVmData[PeType].PeVmState = PE_VM_AVAIL;  //  not there anymore
-		PeSmiControl.PeCpuIndex = -1;    // indicate none functioning at this momemnet 
+		VMPE_Terminate(CpuIndex);
 		DEBUG((EFI_D_INFO,
 			"%ld PostPeVmProc - PE/VM Free (AVAIL) - PeType: %ld\n",
 			CpuIndex,
@@ -741,6 +739,35 @@ UINT32 FreePE_DataStructures(UINT32 PeType)
 	}
 
 	return STM_SUCCESS;
+}
+
+UINT32 VMPE_Terminate(UINT32 CpuIndex)
+{
+	// BUG!! note only handles Perm VM - need to account for non perm vms as well
+
+	UINT32 PeType = PE_PERM;
+	PeType = mHostContextCommon.HostContextPerCpu[CpuIndex].GuestVmType;
+	// guest VmType is set to PE_PERM only when the VM/PE is running
+
+	DEBUG((EFI_D_INFO, "%ld VMPE_Terminate started - PeType: %ld %ld\n",
+				CpuIndex, PeType, PE_PERM));
+	if(PeSmiControl.PeCpuIndex != CpuIndex)
+		return 0;
+
+//	if(PeType == PE_PERM)
+	{
+		StopPeriodicTimer();
+		SetEndOfSmi();    // make sure that the timer SMI has been cleared
+	}
+
+	FreePE_DataStructures(PeType);
+	PeVmData[PeType].PeVmState = PE_VM_AVAIL;  //  not there anymore
+	PeSmiControl.PeCpuIndex = -1;    // indicate none functioning at this momemnet
+	DEBUG((EFI_D_INFO,
+			"%ld VMPE_Terminate done - PeType: %ld\n",
+			CpuIndex,
+			PeType));
+	return 0;
 }
 
 //setup the  guest physical address space assigned for the module to be RWX
